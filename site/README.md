@@ -10,11 +10,13 @@ Worker 默认保护全部内容与静态产物；只放行明确列出的访问�
 
 ## 环境与命令
 
-Node.js >= 22.12.0。工程依赖版本见 package.json；首次联网安装后提交生成的 lockfile，再将 CI 安装切换为 npm ci。
+建议使用 Node.js 22 的最新维护版本（本轮 CI：22.23.2）。CI 固定 npm 11.6.4；下面使用 npx 临时运行同一版本，不必全局替换本机 npm。工程依赖版本见 package.json；首次本机安装后提交真实生成的 lockfile，再将安装收敛为 npm ci。
+
+应用代码提交 `babae1c28701a7957bb30ba044c5ac57c25480c2` 已通过完整 CI：Node 核心测试、Astro/Worker 类型检查、Vitest、静态构建及真实 Wrangler/Playwright 测试。该结果不代表真实关注平台或远程 Cloudflare 部署完成。
 
 ```bash
 cd site
-npm install
+npx --yes npm@11.6.4 install
 npm run dev
 ```
 

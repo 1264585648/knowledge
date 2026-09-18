@@ -14,6 +14,8 @@
 - [UI 规范](UI规范/README.md)
 - [已有高保真](高保真/)
 
+应用代码提交 `babae1c28701a7957bb30ba044c5ac57c25480c2` 的 GitHub CI 已通过：43 项核心测试、完整类型检查、Vitest、Astro 构建和 7 项 Wrangler/Playwright 测试。详见验证记录。
+
 ## 目录
 
 ```text
@@ -25,11 +27,11 @@ site/         正式应用工程（当前为基础阶段）
 
 ## 本地开始
 
-需要 Node.js 22.12.0 或更新的兼容版本。首次安装后请将真实生成的 `site/package-lock.json` 提交；本次环境无法连接 npm，未伪造依赖锁文件。
+建议使用 Node.js 22 的最新维护版本（本轮 CI：22.23.2）。依赖安装固定使用 npm 11.6.4，避免本轮遇到的 npm 10 安装器内部错误。首次本机安装后请将真实生成的 `site/package-lock.json` 提交；当前锁文件尚未入库。
 
 ```bash
 cd site
-npm install
+npx --yes npm@11.6.4 install
 npm run dev
 ```
 
