@@ -1,0 +1,38 @@
+name: site-ci
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', '.github/workflows/site-ci.yml']
+  pull_request:
+    paths: ['site/**', '.github/workflows/site-ci.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Core policy and real SQLite tests
+        run: npm run test:core
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - name: Type checks and Vitest
+        run: npm run check && npm test
+      - name: Build public example only
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Worker gate and browser tests
+        run: npm run test:e2e
+      # No deploy, private content checkout, dist upload or private-data artifacts.

@@ -1,0 +1,4 @@
+# 复制为 .dev.vars。本阶段必须保留 disabled；不提供万能登录或口令。
+AUTH_PROVIDER=disabled
+FOLLOW_TARGET=
+# 真实关注平台的 Secrets 在 P1 接入时定义；禁止提交到仓库。

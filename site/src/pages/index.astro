@@ -1,0 +1,14 @@
+---
+import Base from '../layouts/Base.astro';
+import ArticleList from '../components/ArticleList.astro';
+import { publishedArticles } from '../data/articles';
+import { topics } from '../data/topics';
+const articles = await publishedArticles();
+---
+<Base title="我的知识库">
+  <section class="hero"><span class="hero-mark" aria-hidden="true">▤</span><h1>我的知识库</h1><p>记录学习与实践，<br class="mobile-break" />分享值得反复阅读的方法与经验。</p></section>
+  <a class="callout" href="/topics/"><div><h2>从一个专题，开始阅读</h2><p>把零散的知识连成路径，找到值得深入的问题。</p></div><span aria-hidden="true">↗</span></a>
+  {articles.some(article => article.data.sample) && <p class="sample-note">当前为工程示例内容；真实关注登录尚未接入。</p>}
+  <section><div class="section-heading"><h2>最新文章</h2><a href="/topics/">按专题浏览 →</a></div><ArticleList articles={articles.slice(0, 8)} /></section>
+  <section><div class="section-heading"><h2>知识专题</h2><a href="/topics/">查看全部 →</a></div><div class="topic-grid">{topics.slice(0, 4).map(topic => <a class="topic-card" href={`/topics/${topic.id}/`}><span class="topic-mark" aria-hidden="true">{topic.mark}</span><div><h3>{topic.name}</h3><p>{topic.description}</p></div><span aria-hidden="true">↗</span></a>)}</div></section>
+</Base>

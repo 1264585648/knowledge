@@ -1,0 +1,36 @@
+---
+interface Props { title: string; description?: string; publicPage?: boolean }
+const { title, description = '记录学习与实践，分享值得反复阅读的方法与经验。', publicPage = false } = Astro.props;
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="theme-color" content="#fefefd" />
+    <title>{title} · 知页</title>
+    <link rel="icon" href="/public/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/public/ui.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到正文</a>
+    <header class="site-header">
+      <a class="brand" href={publicPage ? '/access/' : '/'}><img src="/public/favicon.svg" width="22" height="24" alt="" /><span>知页</span></a>
+      <nav aria-label="主导航">
+        {publicPage ? <a href="/privacy/">隐私说明</a> : <><a href="/">首页</a><a href="/topics/">专题</a><button type="button" data-search-open>搜索 <kbd>⌘ K</kbd></button><form action="/api/auth/logout" method="post"><button type="submit">退出</button></form></>}
+      </nav>
+    </header>
+    <main id="main" class="container"><slot /></main>
+    <footer class="site-footer"><span>知页 · 记录、整理、分享</span><a href="/privacy/">隐私说明</a></footer>
+    {!publicPage && <>
+      <dialog id="search-dialog" aria-labelledby="search-title">
+        <form method="dialog" class="search-heading"><h2 id="search-title">搜索文章</h2><button aria-label="关闭搜索">关闭</button></form>
+        <label class="sr-only" for="search-input">关键词</label><input id="search-input" type="search" placeholder="搜索标题、摘要…" autocomplete="off" />
+        <p id="search-status" role="status"></p><ul id="search-results"></ul>
+      </dialog>
+      <script is:inline src="/public/reader.js" defer></script>
+    </>}
+  </body>
+</html>

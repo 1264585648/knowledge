@@ -1,0 +1,10 @@
+---
+import Base from '../../layouts/Base.astro';
+import { topics } from '../../data/topics';
+import { publishedArticles } from '../../data/articles';
+const articles = await publishedArticles();
+---
+<Base title="全部专题">
+  <header class="page-heading"><p class="eyebrow">循着问题，逐步深入</p><h1>全部专题</h1><p>选择一个感兴趣的方向，从一篇文章开始。</p></header>
+  <div class="catalog-grid">{topics.map(topic => <a class="catalog-card" href={`/topics/${topic.id}/`}><span class="topic-mark" aria-hidden="true">{topic.mark}</span><h2>{topic.name}</h2><p>{topic.description}</p><div class="card-bottom"><span>{articles.filter(article => article.data.topics.includes(topic.id)).length} 篇文章</span><span aria-hidden="true">↗</span></div></a>)}</div>
+</Base>

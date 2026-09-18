@@ -1,0 +1,15 @@
+---
+import Base from '../../layouts/Base.astro';
+import ArticleList from '../../components/ArticleList.astro';
+import { topics } from '../../data/topics';
+import { publishedArticles } from '../../data/articles';
+export function getStaticPaths() { return topics.map(topic => ({ params: { id: topic.id }, props: { topic } })); }
+const { topic } = Astro.props;
+const articles = (await publishedArticles()).filter(article => article.data.topics.includes(topic.id));
+---
+<Base title={topic.name} description={topic.description}>
+  <a class="back-link" href="/topics/">← 全部专题</a>
+  <div class="topic-layout"><aside><nav aria-label="专题导航">{topics.map(item => <a href={`/topics/${item.id}/`} aria-current={item.id === topic.id ? 'page' : undefined}>{item.name}</a>)}</nav></aside>
+    <section><header class="page-heading"><span class="topic-mark" aria-hidden="true">{topic.mark}</span><h1>{topic.name}</h1><p>{topic.description}</p><p class="meta">{articles.length} 篇文章</p></header><ArticleList articles={articles} /></section>
+  </div>
+</Base>

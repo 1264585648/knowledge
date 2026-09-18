@@ -1,0 +1,12 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { articleURL, dateLabel } from '../data/articles';
+interface Props { articles: CollectionEntry<'articles'>[] }
+const { articles } = Astro.props;
+---
+{articles.length ? <ul class="article-list">{articles.map(article => <li>
+  <a class="article-row" href={articleURL(article.id)}>
+    <span class="article-title">{article.data.title}</span><span class="article-summary">{article.data.summary}</span>
+    <time datetime={dateLabel(article.data.publishedAt)}>{dateLabel(article.data.publishedAt)}</time><span aria-hidden="true">↗</span>
+  </a>
+</li>)}</ul> : <div class="empty-state"><h2>内容整理中</h2><p>这个专题还没有已发布的文章。</p></div>}

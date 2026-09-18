@@ -1,0 +1,10 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base title="访问说明" publicPage>
+  <section class="access-panel"><span class="topic-mark" aria-hidden="true">▤</span><p class="eyebrow">一本持续生长的知识笔记</p><h1>关注之后，<br />继续阅读。</h1><p class="lead">知页记录学习、实践与思考。文章和专题需要通过关注验证后访问。</p>
+    <div class="access-state"><h2>关注验证接入中</h2><p id="access-status" role="status">当前是工程基础版本，暂不开放登录。网站不会通过点击按钮或共享口令直接授予权限。</p><button type="button" disabled>暂未开放访问</button></div>
+    <p class="meta">只为验证阅读资格使用必要的信息。<a href="/privacy/">查看隐私说明 →</a></p>
+  </section>
+  <script is:inline src="/public/access.js" defer></script>
+</Base>
