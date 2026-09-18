@@ -24,9 +24,12 @@ jobs:
           node-version: '22'
       - name: Core policy and real SQLite tests
         run: npm run test:core
+      - name: Use pinned npm resolver
+        run: npm install --global npm@11.6.4
       - name: Install dependencies
         run: |
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          if [ -f package-lock.json ]; then command=ci; else command=install; fi
+          npm "$command" || { tail -n 100 "$(ls -t ~/.npm/_logs/*-debug-0.log | head -1)"; exit 1; }
       - name: Type checks and Vitest
         run: npm run check && npm test
       - name: Build public example only
