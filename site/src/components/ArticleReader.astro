@@ -1,34 +1,74 @@
 ---
+import type { CollectionEntry } from 'astro:content';
+import TopicTree from './TopicTree.astro';
+import ArticleHeader from './ArticleHeader.astro';
+import ArticleToc from './ArticleToc.astro';
 import ReaderTools from './ReaderTools.astro';
+import Icon from './ReaderIcon.astro';
+import { topics } from '../data/topics';
+import { articleURL } from '../data/article-utils';
 interface Props {
-  articleId: string; title: string; summary: string; publishedAt: string;
-  topicName: string; topicHref: string; minutes: number; sample?: boolean;
+  article: CollectionEntry<'articles'>; articles: CollectionEntry<'articles'>[]; minutes: number;
   headings: { depth: number; slug: string; text: string }[];
+  previous?: CollectionEntry<'articles'>; next?: CollectionEntry<'articles'>;
 }
-const { articleId, title, summary, publishedAt, topicName, topicHref, minutes, sample = false, headings } = Astro.props;
-const outline = headings.filter(heading => heading.depth === 2 || heading.depth === 3);
+const { article, articles, headings, minutes, previous, next } = Astro.props;
+const topic = topics.find(t => t.id === article.data.topics[0])!;
 ---
-<link rel="stylesheet" href="/public/article-reader.css" />
-<div class="reader-shell" data-reader data-article-id={articleId}>
-  <nav class="reader-breadcrumb" aria-label="面包屑"><a href="/">文章</a><span aria-hidden="true">/</span><a href={topicHref}>{topicName}</a><span aria-hidden="true">/</span><span aria-current="page">阅读正文</span></nav>
-  <div class="reader-grid">
-    <aside class="reader-outline" aria-label="文章目录"><p class="outline-label">正在阅读</p><a class="outline-topic" href={topicHref}>{topicName} <span aria-hidden="true">↗</span></a>
-      <details class="outline-details" open><summary>本文目录 <span aria-hidden="true">⌄</span></summary><nav class="outline-nav" aria-label="本文章节">{outline.map(heading => <a class:list={{subheading: heading.depth === 3}} href={`#${encodeURIComponent(heading.slug)}`}>{heading.text}</a>)}</nav></details>
-      <div class="outline-bottom"><p>慢慢读，<br />把知识变成自己的。</p><button type="button" class="text-button" data-back-top>↑ 回到顶部</button></div>
-    </aside>
-    <article class="reader-article" aria-labelledby="reader-title">
-      <header><div class="article-eyebrow"><span class="small-tag">{topicName}</span><span>{sample ? '内容页示例' : '专题文章'}</span></div><h1 class="reader-title" id="reader-title">{title}</h1><p class="reader-summary">{summary}</p>
-        <div class="article-meta"><span class="author-mark" aria-hidden="true">知</span><span>知页</span><span class="meta-separator" aria-hidden="true">·</span><time datetime={publishedAt}>{publishedAt.replaceAll('-', '.')}</time><span class="meta-separator" aria-hidden="true">·</span><span>约 {minutes} 分钟</span></div>
-      </header>
-      <div class="article-actions" aria-label="文章操作"><button type="button" class="text-button" data-focus aria-pressed="false">↔ 专注阅读</button><button type="button" class="text-button" data-copy-link>↗ 复制链接</button><button type="button" class="text-button" data-open-notes>＋ 记笔记</button><span class="reading-tip">选中文字，随手记下想法</span></div>
-      <div class="reader-content" id="reader-content"><slot /></div>
-      <footer class="reader-end"><p>读到这里，试着用自己的话整理一下收获。</p><button type="button" class="text-button" data-open-notes>写下我的理解 ↗</button></footer>
-    </article>
-    <ReaderTools />
+<!doctype html>
+<html lang="zh-CN"><head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content={article.data.summary} /><meta name="robots" content="noindex, nofollow, noarchive" />
+  <meta name="theme-color" content="#fefefd" /><title>{article.data.title} · 知页</title>
+  <link rel="icon" href="/public/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/public/article-reader.css" /><link rel="stylesheet" href="/public/article-content.css" />
+</head><body data-reader data-article-id={article.id} data-article-title={article.data.title}>
+  <a class="skip-link" href="#article-title">跳到文章正文</a>
+  <noscript><p class="no-script">正文无需 JavaScript 即可阅读。<a href="/topics/">查看全部专题</a>；搜索、收藏与批注需启用 JavaScript。</p></noscript>
+  <div class="workspace">
+    <TopicTree articles={articles} currentId={article.id} />
+    <header class="topbar">
+      <div class="topbar-start"><button type="button" class="icon-button menu-toggle" data-drawer="library" aria-label="打开专题目录"><Icon name="menu" /></button>
+        <span class="preview-mark">知页<span class="preview-long"> · {topic.name}</span></span><button type="button" class="exit-focus" data-focus>退出专注阅读</button>
+      </div>
+      <div class="topbar-actions"><button type="button" class="top-search" data-search="article"><Icon name="search" /><span>搜索本文…</span></button>
+        <button type="button" class="icon-button" id="theme-toggle" aria-label="切换深色模式" aria-pressed="false"><Icon name="sun" /></button>
+        <form action="/api/auth/logout" method="post"><button class="logout-button" type="submit">退出</button></form>
+      </div>
+      <div class="progress-track" role="progressbar" aria-label="文章阅读进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="progress-bar"></span></div>
+    </header>
+    <main class="reader" id="main">
+      <nav class="breadcrumb" aria-label="面包屑"><a href="/">首页</a><Icon name="chevron" /><a href={`/topics/${topic.id}/`}>{topic.name}</a><Icon name="chevron" /><span aria-current="page">阅读正文</span></nav>
+      <article aria-labelledby="article-title">
+        <ArticleHeader article={article} minutes={minutes} />
+        <div class="article-body" id="article-body"><slot /></div>
+        <footer class="article-end"><p class="end-note">选中一段文字，可以带着原文提问或记下批注。</p>
+          {(previous || next) && <nav class="adjacent-articles" aria-label="专题阅读顺序">
+            {previous && <a class="next-article" rel="prev" href={articleURL(previous.id)}><span><small>上一篇</small><strong>{previous.data.title}</strong></span></a>}
+            {next && <a class="next-article" rel="next" href={articleURL(next.id)}><span><small>下一篇</small><strong>{next.data.title}</strong></span><Icon name="arrow" /></a>}
+          </nav>}
+        </footer>
+      </article>
+      <footer class="reader-footer"><span>© 知页 · 记录、整理、分享</span><a href="/privacy/">隐私说明</a></footer>
+    </main>
+    <aside class="right-rail" id="right-rail" aria-label="本篇目录与提问批注"><ArticleToc headings={headings} depth={article.data.tocDepth} /><ReaderTools /></aside>
   </div>
-  <button class="tools-launcher" type="button" aria-controls="reader-tools" aria-expanded="false">✳ 提问 / 笔记</button>
-  <div class="reader-shade" aria-hidden="true"></div>
-  <div class="selection-actions" role="group" aria-label="选中文字操作" hidden><button type="button" data-selection-ask>围绕选文提问</button><button type="button" data-selection-note>摘录到笔记</button></div>
-  <div class="reader-notice" id="reader-notice" role="status" aria-live="polite" hidden></div>
-</div>
-<script is:inline src="/public/article-reader.js" defer></script>
+  <div class="floating-dock" aria-label="移动阅读工具">
+    <button type="button" class="mobile-library" data-drawer="library"><Icon name="folder" />专题目录</button>
+    <button type="button" data-drawer="toc"><Icon name="list" />本篇目录</button>
+    <button type="button" data-drawer="tools"><Icon name="note" />提问 / 批注</button>
+  </div>
+  <button type="button" class="back-top" data-back-top aria-label="回到顶部"><Icon name="up" /></button>
+  <div class="selection-tools" id="selection-tools" role="group" aria-label="选中文字操作" hidden>
+    <button type="button" data-selection="question"><Icon name="chat" />提问</button><button type="button" data-selection="note"><Icon name="note" />批注</button>
+  </div>
+  <dialog id="search-dialog" aria-label="搜索"><div class="dialog-head"><Icon name="search" />
+    <input id="search-input" type="search" aria-label="搜索关键词" autocomplete="off" />
+    <button type="button" class="icon-button" data-close-dialog aria-label="关闭搜索"><Icon name="close" /></button></div>
+    <p class="dialog-info" id="search-info"></p><div class="dialog-body" id="search-results" aria-live="polite"></div>
+  </dialog>
+  <dialog id="info-dialog" aria-labelledby="info-heading"><div class="dialog-head"><h2 id="info-heading">阅读记录</h2><button type="button" class="icon-button" data-close-dialog aria-label="关闭"><Icon name="close" /></button></div><div class="dialog-body" id="info-body"></div></dialog>
+  <dialog class="drawer" id="drawer" aria-labelledby="drawer-title"><div class="drawer-head"><strong id="drawer-title">阅读工具</strong><button type="button" class="icon-button" data-close-dialog aria-label="关闭侧栏"><Icon name="close" /></button></div><div class="drawer-body" id="drawer-body"></div></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <script is:inline src="/public/article-reader.js" defer></script>
+</body></html>

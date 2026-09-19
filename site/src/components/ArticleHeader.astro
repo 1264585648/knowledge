@@ -1,0 +1,24 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { dateLabel } from '../data/article-utils';
+import Icon from './ReaderIcon.astro';
+interface Props { article: CollectionEntry<'articles'>; minutes: number }
+const { article: { data }, minutes } = Astro.props;
+---
+<header class="article-header">
+  <h1 id="article-title" tabindex="-1">{data.title}</h1>
+  <p class="summary">{data.summary}</p>
+  <div class="meta-row"><div class="article-meta">
+    <span><Icon name="calendar" /><time datetime={dateLabel(data.publishedAt)}>{dateLabel(data.publishedAt)}</time></span>
+    <span><Icon name="clock" />约 {minutes} 分钟阅读</span>
+    {data.sample && <span class="sample-label">公开示例</span>}
+  </div><div class="article-actions">
+    <button type="button" class="outline-button" id="bookmark" aria-pressed="false"><Icon name="bookmark" /><span>收藏</span></button>
+    <details class="more"><summary class="outline-button" aria-label="更多文章操作"><Icon name="more" /></summary><div class="more-menu">
+      <button type="button" data-copy-link><Icon name="link" />复制文章链接</button>
+      <button type="button" data-focus><Icon name="focus" />专注阅读</button>
+      <button type="button" data-print><Icon name="print" />打印文章</button>
+    </div></details>
+  </div></div>
+</header>
+{data.cover && <figure class="article-cover"><img src={data.cover} alt={data.coverAlt} width="768" height="222" fetchpriority="high" /></figure>}

@@ -1,0 +1,14 @@
+---
+interface Props { headings: { depth: number; slug: string; text: string }[]; depth?: 2 | 3 }
+const { headings, depth = 2 } = Astro.props;
+const outline = headings.filter(h => h.depth >= 2 && h.depth <= depth);
+---
+<section class="rail-card" id="toc-card">
+  <h2 class="rail-heading">本篇目录</h2>
+  <nav class="toc" aria-label="本篇章节">
+    {outline.map((heading, i) => <a class:list={{ subheading: heading.depth === 3 }}
+      href={`#${encodeURIComponent(heading.slug)}`} data-section-id={heading.slug}
+      aria-current={i === 0 ? 'location' : undefined}>{heading.text}</a>)}
+  </nav>
+  {!outline.length && <p class="form-hint">本文没有设置章节标题。</p>}
+</section>

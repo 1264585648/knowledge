@@ -1,345 +1,309 @@
-/* Browser-only demo. No network calls, model SDKs, or user-content HTML injection. */
+/* Shared reader. No network/model calls; all dynamic user text uses textContent.
+   Article-local notes/bookmarks, global theme/recent IDs. Legacy prototype keys are untouched. */
 (() => {
   'use strict';
   const root = document.querySelector('[data-reader]');
-  if (!root) return;
-  const $ = (selector) => root.querySelector(selector);
-  const $$ = (selector) => [...root.querySelectorAll(selector)];
-  const content = $('#reader-content');
-  const tools = $('#reader-tools');
-  const tabs = $$('[data-tab]');
-  const headings = [...content.querySelectorAll('h2[id],h3[id]')];
-  const tocLinks = $$('.outline-nav a');
-  const narrow = matchMedia('(max-width: 1100px)');
-  const mobile = matchMedia('(max-width: 760px)');
-  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-  const details = $('.outline-details');
-  const storageKey = `zhiye:reader-notes:v1:${root.dataset.articleId || location.pathname}`;
-  let currentHeading = headings[0] || null;
-  let selected = { text: '', section: '' };
-  let quoted = { text: '', section: '' };
-  let questionQuote = { text: '', section: '' };
-  let editingId = '';
-  let noticeTimer;
-  let returnFocus = null;
-  let previousOverflow = '';
-  const inertStates = new Map();
-  const make = (tag, className, text) => {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
+  if (!root || root.dataset.readerReady) return;
+  root.dataset.readerReady = 'true';
+  const $ = (s, parent = root) => parent.querySelector(s);
+  const $$ = (s, parent = root) => [...parent.querySelectorAll(s)];
+  const articleId = root.dataset.articleId;
+  if (!articleId || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(articleId)) return;
+  const title = root.dataset.articleTitle || document.title;
+  const prefix = `zhiye:article:v1:${articleId}:`;
+  const noteKey = prefix + 'notes';
+  const content = $('#article-body');
+  const headings = $$('h2[id],h3[id]', content).filter(h => !h.closest('.footnotes'));
+  const motion = () => matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
+  const state = { notes: [], raw: null, safe: true, unsaved: false, editing: null, selected: null,
+    quotes: { note: null, question: null }, moved: null, mode: 'catalog', opener: null };
+  const node = (tag, cls = '', text) => {
+    const el = document.createElement(tag); if (cls) el.className = cls;
+    if (text !== undefined) el.textContent = text; return el;
   };
-  function notify(text) {
-    const notice = $('#reader-notice');
-    notice.textContent = text;
-    notice.hidden = false;
-    clearTimeout(noticeTimer);
-    noticeTimer = setTimeout(() => { notice.hidden = true; }, 4000);
+  const button = (text, fn, cls = '') => {
+    const el = node('button', cls, text); el.type = 'button'; el.addEventListener('click', fn); return el;
+  };
+  let timer;
+  function toast(text) {
+    $('#toast').textContent = text; $('#toast').hidden = false;
+    clearTimeout(timer); timer = setTimeout(() => { $('#toast').hidden = true; }, 4500);
   }
-  function sectionElement(id) {
-    const node = document.getElementById(id);
-    return node && content.contains(node) && /^H[23]$/.test(node.tagName) ? node : null;
+  const read = (key, fallback) => { try { const value = localStorage.getItem(key); return value === null ? fallback : JSON.parse(value); } catch { return fallback; } };
+  const write = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; } };
+  function warning(text) { $('#storage-warning').hidden = false; $('#storage-warning').textContent = text; }
+  function validNote(n) {
+    return n && typeof n.id === 'string' && n.id.length > 0 && n.id.length <= 100 &&
+      typeof n.text === 'string' && n.text.trim().length > 0 && n.text.length <= 2000 &&
+      typeof n.created === 'string' && Number.isFinite(Date.parse(n.created)) &&
+      (n.quote === null || (n.quote && typeof n.quote.text === 'string' && n.quote.text.length <= 800 &&
+        typeof n.quote.section === 'string' && n.quote.section.length <= 500));
   }
-  function sourceLink(id) {
-    const heading = sectionElement(id);
-    if (!heading) return null;
-    const link = make('a', 'text-button', `↳ ${heading.textContent}`);
-    link.href = `#${encodeURIComponent(id)}`;
-    link.addEventListener('click', () => { if (narrow.matches) closeTools(); });
-    return link;
-  }
-  function setFocused(value) {
-    root.classList.toggle('is-focused', value);
-    const control = $('[data-focus]');
-    control.setAttribute('aria-pressed', String(value));
-    control.textContent = value ? '↔ 退出专注' : '↔ 专注阅读';
-  }
-  function setTab(name, focus = false) {
-    for (const tab of tabs) {
-      const active = tab.dataset.tab === name;
-      tab.setAttribute('aria-selected', String(active));
-      tab.tabIndex = active ? 0 : -1;
-      document.getElementById(tab.getAttribute('aria-controls')).hidden = !active;
-      if (active && focus) tab.focus();
-    }
-  }
-  function openTools(name = 'ask') {
-    setFocused(false);
-    setTab(name);
-    if (!narrow.matches) return;
-    if (!root.classList.contains('tools-open')) {
-      returnFocus = document.activeElement;
-      previousOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-      const background = [...document.body.children].filter(el => !el.contains(root) && !['SCRIPT','STYLE','LINK'].includes(el.tagName));
-      background.push($('.reader-breadcrumb'), $('.reader-outline'), $('.reader-article'), $('.tools-launcher'), $('.selection-actions'));
-      for (const node of background.filter(Boolean)) { inertStates.set(node, node.inert); node.inert = true; }
-    }
-    root.classList.add('tools-open');
-    tools.setAttribute('role', 'dialog');
-    tools.setAttribute('aria-modal', 'true');
-    $('.tools-launcher').setAttribute('aria-expanded', 'true');
-    requestAnimationFrame(() => tabs.find(tab => tab.dataset.tab === name)?.focus());
-  }
-  function closeTools(restoreFocus = true) {
-    if (!root.classList.contains('tools-open')) return;
-    root.classList.remove('tools-open');
-    tools.removeAttribute('role');
-    tools.removeAttribute('aria-modal');
-    $('.tools-launcher').setAttribute('aria-expanded', 'false');
-    document.body.style.overflow = previousOverflow;
-    inertStates.forEach((value, node) => { node.inert = value; });
-    inertStates.clear();
-    if (restoreFocus && returnFocus instanceof HTMLElement && returnFocus.isConnected) returnFocus.focus();
-  }
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => setTab(tab.dataset.tab));
-    tab.addEventListener('keydown', event => {
-      const index = tabs.indexOf(tab);
-      let next;
-      if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
-      if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
-      if (event.key === 'Home') next = 0;
-      if (event.key === 'End') next = tabs.length - 1;
-      if (next !== undefined) { event.preventDefault(); setTab(tabs[next].dataset.tab, true); }
-    });
-  });
-  $('[data-tools-close]').addEventListener('click', () => closeTools());
-  $('.reader-shade').addEventListener('click', () => closeTools());
-  $$('.tools-launcher,[data-open-notes]').forEach(button => button.addEventListener('click', () => openTools(button.hasAttribute('data-open-notes') ? 'notes' : 'ask')));
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') { $('.selection-actions').hidden = true; closeTools(); }
-    if (event.key !== 'Tab' || !root.classList.contains('tools-open')) return;
-    const focusable = [...tools.querySelectorAll('button,a[href],textarea,input,[tabindex="0"]')].filter(el => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length);
-    const first = focusable[0], last = focusable.at(-1);
-    if (!first) return;
-    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-  });
-  narrow.addEventListener('change', () => closeTools(false));
-  function setOutlineMode() { details.open = !mobile.matches; }
-  mobile.addEventListener('change', setOutlineMode);
-  setOutlineMode();
-  function trackSection() {
-    let active = headings[0] || null;
-    for (const heading of headings) {
-      if (heading.getBoundingClientRect().top <= 150) active = heading;
-      else break;
-    }
-    currentHeading = active;
-    for (const link of tocLinks) {
-      let id = '';
-      try { id = decodeURIComponent(link.hash.slice(1)); } catch { /* Ignore malformed external fragments. */ }
-      if (active && id === active.id) link.setAttribute('aria-current', 'location');
-      else link.removeAttribute('aria-current');
-    }
-  }
-  let scrollQueued = false;
-  addEventListener('scroll', () => {
-    if (scrollQueued) return;
-    scrollQueued = true;
-    requestAnimationFrame(() => { trackSection(); scrollQueued = false; $('.selection-actions').hidden = true; });
-  }, { passive: true });
-  addEventListener('resize', trackSection);
-  trackSection();
-  tocLinks.forEach(link => link.addEventListener('click', () => { if (mobile.matches) details.open = false; }));
-  $('[data-back-top]').addEventListener('click', () => window.scrollTo({ top: 0, behavior: reducedMotion.matches ? 'auto' : 'smooth' }));
-  $('[data-focus]').addEventListener('click', () => setFocused(!root.classList.contains('is-focused')));
-  $('[data-copy-link]').addEventListener('click', async () => {
-    if (location.protocol === 'file:') { notify('这是本地预览文件，请分享 HTML 文件或部署后的页面地址。'); return; }
-    try { await navigator.clipboard.writeText(location.href); notify('已复制文章链接'); }
-    catch { notify('浏览器不允许自动复制，请从地址栏复制页面地址。'); }
-  });
-  function selectionSection(range) {
-    let active = headings[0] || null;
-    for (const heading of headings) {
-      if (heading === range.startContainer || heading.contains(range.startContainer) || (heading.compareDocumentPosition(range.startContainer) & Node.DOCUMENT_POSITION_FOLLOWING)) active = heading;
-    }
-    return active?.id || '';
-  }
-  function captureSelection() {
-    const selection = window.getSelection();
-    const toolbar = $('.selection-actions');
-    if (!selection || selection.isCollapsed || !selection.rangeCount) { toolbar.hidden = true; return; }
-    const range = selection.getRangeAt(0);
-    if (!content.contains(range.startContainer) || !content.contains(range.endContainer)) { toolbar.hidden = true; return; }
-    const text = selection.toString().trim().slice(0, 1500);
-    if (!text) return;
-    selected = { text, section: selectionSection(range) };
-    const rect = range.getBoundingClientRect();
-    toolbar.hidden = false;
-    const width = toolbar.offsetWidth;
-    toolbar.style.left = `${Math.max(8, Math.min(innerWidth - width - 8, rect.left + rect.width / 2 - width / 2))}px`;
-    toolbar.style.top = `${Math.max(8, Math.min(innerHeight - toolbar.offsetHeight - 8, rect.bottom + 8))}px`;
-  }
-  content.addEventListener('pointerup', () => setTimeout(captureSelection, 0));
-  content.addEventListener('keyup', event => { if (event.key.startsWith('Arrow') || event.key === 'Shift') captureSelection(); });
-  $('.selection-actions').addEventListener('mousedown', event => event.preventDefault());
-  document.addEventListener('pointerdown', event => {
-    if (!content.contains(event.target) && !$('.selection-actions').contains(event.target)) $('.selection-actions').hidden = true;
-  });
-  function renderQuote() {
-    $('#note-quote').hidden = !quoted.text;
-    $('#note-quote-text').textContent = quoted.text;
-  }
-  $('[data-selection-note]').addEventListener('click', () => {
-    quoted = { ...selected };
-    renderQuote();
-    openTools('notes');
-    $('.selection-actions').hidden = true;
-    requestAnimationFrame(() => $('#note-input').focus());
-  });
-  $('[data-selection-ask]').addEventListener('click', () => {
-    questionQuote = { ...selected };
-    openTools('ask');
-    $('#question-input').value = `请解释这段话：${selected.text.slice(0, 700)}`;
-    $('.selection-actions').hidden = true;
-    requestAnimationFrame(() => $('#question-input').focus());
-  });
-  $('#clear-quote').addEventListener('click', () => { quoted = { text: '', section: '' }; renderQuote(); });
-  $$('[data-question]').forEach(button => button.addEventListener('click', () => {
-    $('#question-input').value = button.dataset.question;
-    questionQuote = { text: '', section: '' };
-    $('#question-input').focus();
-  }));
-  function excerptFor(heading) {
-    let next = heading?.nextElementSibling;
-    while (next && !/^H[23]$/.test(next.tagName)) {
-      if (['P', 'BLOCKQUOTE'].includes(next.tagName) && next.textContent.trim()) return next.textContent.trim().slice(0, 520);
-      next = next.nextElementSibling;
-    }
-    return content.querySelector('p')?.textContent.trim().slice(0, 520) || '本文暂无可摘录的段落。';
-  }
-  $('#question-form').addEventListener('submit', event => {
-    event.preventDefault();
-    const input = $('#question-input');
-    const question = input.value.trim();
-    if (!question) { input.focus(); return; }
-    const log = $('#question-log');
-    if (log.children.length >= 40) { notify('演示对话已达 20 轮，刷新页面可重新开始。'); return; }
-    let heading = sectionElement(questionQuote.section) || currentHeading;
-    if (!questionQuote.text && /边界|限制/.test(question)) heading = headings.find(h => /边界|限制/.test(h.textContent)) || heading;
-    const user = make('div', 'reader-entry question-user');
-    user.append(make('span', 'entry-meta', '你 · 本页临时对话'), make('p', '', question));
-    const reply = make('div', 'reader-entry');
-    reply.append(make('span', 'entry-meta', '本地演示 · 原文摘录'), make('p', '', '尚未接入 AI，以下仅展示原文，不是针对问题生成的回答。'));
-    reply.append(make('blockquote', '', questionQuote.text || excerptFor(heading)));
-    const link = heading && sourceLink(heading.id);
-    if (link) reply.append(link);
-    log.append(user, reply);
-    input.value = '';
-    questionQuote = { text: '', section: '' };
-    reply.scrollIntoView({ behavior: reducedMotion.matches ? 'auto' : 'smooth', block: 'nearest' });
-  });
-  $('#comment-form').addEventListener('submit', event => {
-    event.preventDefault();
-    const input = $('#comment-input');
-    const text = input.value.trim();
-    if (!text) { input.focus(); return; }
-    const list = $('#comment-list');
-    if (list.children.length >= 50) { notify('演示评论已达 50 条，刷新页面可清空。'); return; }
-    const entry = make('div', 'reader-entry');
-    entry.append(make('span', 'entry-meta', '你 · 刚刚 · 仅本页'), make('p', '', text));
-    const remove = make('button', 'text-button', '删除');
-    remove.type = 'button';
-    remove.addEventListener('click', () => { entry.remove(); $('#comment-empty').hidden = !!list.children.length; });
-    entry.append(remove); list.prepend(entry);
-    $('#comment-empty').hidden = true;
-    input.value = '';
-    notify('已添加演示评论，没有公开发布');
-  });
-  let storageAvailable = true;
-  let notes = [];
-  function storageWarning(message) {
-    storageAvailable = false;
-    $('#storage-warning').hidden = false;
-    $('#storage-warning').textContent = message;
-    $('#note-state').textContent = '仅本页暂存';
-  }
-  function validNote(note) {
-    return note && typeof note.id === 'string' && typeof note.text === 'string' && note.text.length <= 5000 && typeof note.quote === 'string' && note.quote.length <= 1500 && typeof note.section === 'string' && typeof note.updatedAt === 'string' && Number.isFinite(Date.parse(note.updatedAt));
-  }
-  try {
-    const raw = localStorage.getItem(storageKey);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed) || !parsed.every(validNote)) throw new Error('Invalid stored notes');
-      notes = parsed.slice(0, 200);
-    }
-  } catch {
-    storageWarning('无法读取本地笔记或数据格式异常。本次仅临时保存，不覆盖已有数据；请导出备份。');
+  function loadNotes() {
+    try {
+      state.raw = localStorage.getItem(noteKey);
+      if (state.raw === null) return;
+      const value = JSON.parse(state.raw);
+      if (!Array.isArray(value) || value.length > 200 || !value.every(validNote) || new Set(value.map(n => n.id)).size !== value.length) throw new Error('Invalid notes');
+      state.notes = value;
+    } catch { state.safe = false; warning('已有批注无法读取，原存储不会被覆盖。新批注仅暂存本页，请及时导出。'); }
   }
   function persistNotes() {
-    if (!storageAvailable) return false;
-    try { localStorage.setItem(storageKey, JSON.stringify(notes)); return true; }
-    catch { storageWarning('浏览器存储不可用或空间不足。本次改动只在当前页面，请导出笔记，避免刷新丢失。'); return false; }
-  }
-  function resetEditor() {
-    editingId = '';
-    $('#note-input').value = '';
-    quoted = { text: '', section: '' };
-    renderQuote();
-    $('#save-note').textContent = '保存笔记';
-    $('#note-state').textContent = storageAvailable ? '手动保存' : '仅本页暂存';
-  }
-  function renderNotes() {
-    const list = $('#note-list');
-    list.replaceChildren();
-    $('#note-empty').hidden = notes.length > 0;
-    $('#note-count').textContent = `${notes.length} 条`;
-    $('#export-notes').disabled = !notes.length;
-    for (const note of notes) {
-      const entry = make('div', 'reader-entry');
-      entry.append(make('span', 'entry-meta', new Date(note.updatedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })));
-      if (note.quote) entry.append(make('blockquote', '', note.quote));
-      entry.append(make('p', '', note.text));
-      const actions = make('div', 'entry-actions');
-      const source = sourceLink(note.section);
-      if (source) actions.append(source);
-      const edit = make('button', 'text-button', '编辑');
-      edit.type = 'button';
-      edit.addEventListener('click', () => {
-        if ($('#note-input').value.trim() && !window.confirm('切换到这条笔记？当前未保存的输入会被替换。')) return;
-        editingId = note.id;
-        $('#note-input').value = note.text;
-        quoted = { text: note.quote, section: note.section };
-        renderQuote(); $('#save-note').textContent = '更新笔记'; $('#note-input').focus();
-      });
-      const remove = make('button', 'text-button', '删除');
-      remove.type = 'button';
-      remove.addEventListener('click', () => {
-        if (!window.confirm('删除这条笔记？此操作无法撤销。')) return;
-        notes = notes.filter(item => item.id !== note.id);
-        const saved = persistNotes();
-        if (editingId === note.id) resetEditor();
-        renderNotes(); notify(saved ? '已删除笔记' : '已从本页移除；存储不可用，请导出备份');
-      });
-      actions.append(edit, remove); entry.append(actions); list.append(entry);
+    try {
+      if (!state.safe || localStorage.getItem(noteKey) !== state.raw) throw new Error('Storage changed');
+      const raw = JSON.stringify(state.notes); localStorage.setItem(noteKey, raw);
+      state.raw = raw; state.unsaved = false; return true;
+    } catch {
+      state.safe = false; state.unsaved = true;
+      warning('存储不可用或已被其他标签页修改。本次更改仅暂存本页，原数据未覆盖，请导出后刷新。'); return false;
     }
   }
-  $('#note-input').addEventListener('input', () => { $('#note-state').textContent = '尚未保存'; });
-  $('#note-form').addEventListener('submit', event => {
-    event.preventDefault();
-    const text = $('#note-input').value.trim();
-    if (!text) { $('#note-input').focus(); return; }
-    if (!editingId && notes.length >= 200) { notify('单篇最多保存 200 条笔记，请先导出并整理。'); return; }
-    const note = { id: editingId || `${Date.now()}-${Math.random().toString(36).slice(2)}`, text, quote: quoted.text, section: quoted.section || currentHeading?.id || '', updatedAt: new Date().toISOString() };
-    notes = [note, ...notes.filter(item => item.id !== note.id)];
-    const saved = persistNotes();
-    resetEditor(); renderNotes();
-    $('#note-state').textContent = saved ? '已保存到本机' : '仅本页暂存';
-    notify(saved ? '笔记已保存在当前浏览器' : '笔记仅在本页暂存，请导出备份');
+  function restoreDrawer() {
+    if (state.moved) { state.moved.placeholder.replaceWith(state.moved.element); state.moved = null; }
+  }
+  function closeDrawer(restoreFocus = true) {
+    if ($('#drawer').open) $('#drawer').close(); restoreDrawer();
+    if (restoreFocus && state.opener?.isConnected && state.opener.getClientRects().length) state.opener.focus({ preventScroll: true });
+  }
+  $('#drawer').addEventListener('close', () => { if (!$('#drawer').open) restoreDrawer(); });
+  function showDialog(dialog) {
+    closeDrawer(false); $$('dialog[open]').filter(d => d !== dialog).forEach(d => d.close());
+    if (!dialog.open) dialog.showModal();
+  }
+  function info(label, children) { $('#info-heading').textContent = label; $('#info-body').replaceChildren(...children); showDialog($('#info-dialog')); }
+  function openDrawer(kind) {
+    document.body.classList.remove('focus-mode');
+    const library = kind === 'library', el = library ? $('#library') : $('#right-rail');
+    if (library ? innerWidth > 820 : innerWidth > 1100) {
+      if (!library) el.scrollTop = kind === 'toc' ? 0 : $('#tools-card').offsetTop - 18;
+      return;
+    }
+    closeDrawer(false); $$('dialog[open]').forEach(d => d.close()); state.opener = document.activeElement;
+    const placeholder = document.createComment('reader-original-position'); el.before(placeholder);
+    state.moved = { element: el, placeholder }; $('#drawer-body').append(el);
+    $('#drawer').dataset.side = library ? 'left' : 'right';
+    $('#drawer-title').textContent = library ? '专题与文章' : kind === 'toc' ? '本篇目录' : '提问 / 批注';
+    $('#drawer').showModal();
+    $('#drawer-body').scrollTop = library || kind === 'toc' ? 0 : Math.max(0, $('#tools-card').offsetTop - 60);
+  }
+  function setTab(kind, focus = false) {
+    const notes = kind === 'note';
+    [$('#question-tab'), $('#notes-tab')].forEach((el, i) => {
+      const active = notes === (i === 1); el.setAttribute('aria-selected', String(active)); el.tabIndex = active ? 0 : -1;
+    });
+    $('#question-panel').hidden = notes; $('#notes-panel').hidden = !notes;
+    if (focus) (notes ? $('#notes-tab') : $('#question-tab')).focus();
+  }
+  $('#question-tab').addEventListener('click', () => setTab('question'));
+  $('#notes-tab').addEventListener('click', () => setTab('note'));
+  $('.tabs').addEventListener('keydown', e => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+    e.preventDefault(); setTab(e.key === 'Home' ? 'question' : e.key === 'End' ? 'note' : $('#notes-panel').hidden ? 'note' : 'question', true);
+  });
+  function sectionElement(id) {
+    const el = document.getElementById(id);
+    return el && (content.contains(el) || el.id === 'article-title') ? el : null;
+  }
+  function goTo(id) {
+    const el = sectionElement(id); if (!el) return;
+    closeDrawer(false); el.scrollIntoView({ block: 'start', behavior: motion() });
+    try { history.replaceState(null, '', '#' + encodeURIComponent(id)); } catch { /* Opaque preview origin. */ }
+    el.tabIndex = -1; el.focus({ preventScroll: true });
+  }
+  function renderQuote(kind) {
+    const el = $('#' + kind + '-quote'), quote = state.quotes[kind]; el.hidden = !quote;
+    $('span', el).textContent = quote?.text || '';
+  }
+  function useQuote(kind) {
+    if (!state.selected) { toast('先选中正文中的一段文字。'); return; }
+    state.quotes[kind] = { ...state.selected }; renderQuote(kind); setTab(kind); openDrawer('tools');
+    $('#' + kind + '-input').focus(); $('#selection-tools').hidden = true;
+  }
+  function captureSelection() {
+    const selection = window.getSelection(); $('#selection-tools').hidden = true;
+    if (!selection || selection.isCollapsed || !selection.rangeCount) return;
+    const range = selection.getRangeAt(0);
+    if (!content.contains(range.commonAncestorContainer)) return;
+    const text = selection.toString().trim(); if (!text) return;
+    let section = 'article-title';
+    for (const h of headings) {
+      if (h.contains(range.startContainer) || (h.compareDocumentPosition(range.startContainer) & Node.DOCUMENT_POSITION_FOLLOWING)) section = h.id;
+      else break;
+    }
+    state.selected = { text: text.slice(0, 800), section };
+    const r = range.getBoundingClientRect(), bar = $('#selection-tools'); bar.hidden = false;
+    bar.style.left = Math.max(10, Math.min(innerWidth - 170, r.left + r.width / 2 - 80)) + 'px';
+    bar.style.top = Math.max(62, Math.min(innerHeight - 54, r.top - 44)) + 'px';
+  }
+  content.addEventListener('pointerup', () => setTimeout(captureSelection, 0));
+  document.addEventListener('keyup', e => { if (e.key === 'Shift' || (e.shiftKey && e.key.startsWith('Arrow'))) captureSelection(); });
+  $('#selection-tools').addEventListener('pointerdown', e => e.preventDefault());
+  document.addEventListener('pointerdown', e => { if (!e.target.closest('#selection-tools,#article-body')) $('#selection-tools').hidden = true; });
+  function dirty() {
+    const original = state.notes.find(n => n.id === state.editing);
+    return state.editing ? !original || $('#note-input').value !== original.text || JSON.stringify(state.quotes.note) !== JSON.stringify(original.quote)
+      : Boolean($('#note-input').value.trim() || state.quotes.note);
+  }
+  function resetNote() {
+    state.editing = null; $('#note-input').value = ''; state.quotes.note = null; renderQuote('note');
+    $('#save-note').textContent = '保存批注'; $('#cancel-edit').hidden = true;
+  }
+  function renderNotes() {
+    const list = $('#notes-list'); list.replaceChildren(); $('#notes-count').textContent = state.notes.length + ' 条批注';
+    $('#export-notes').disabled = state.notes.length === 0;
+    if (!state.notes.length) { list.append(node('p', 'notes-empty', '还没有批注，记下第一个想法吧。')); return; }
+    state.notes.forEach(n => {
+      const item = node('article', 'note-item'); const time = node('time', '', new Date(n.created).toLocaleString('zh-CN')); time.dateTime = n.created;
+      item.append(time); if (n.quote) item.append(node('blockquote', '', n.quote.text)); item.append(node('p', '', n.text));
+      const actions = node('div', 'note-actions');
+      if (n.quote && sectionElement(n.quote.section)) {
+        const link = node('a', '', '查看原文'); link.href = '#' + encodeURIComponent(n.quote.section);
+        link.addEventListener('click', e => { e.preventDefault(); goTo(n.quote.section); }); actions.append(link);
+      } else if (n.quote) actions.append(node('span', '', '原章节已调整，摘录仍保留'));
+      actions.append(button('编辑', () => {
+        if (dirty() && !confirm('放弃当前草稿并编辑这条批注？')) return;
+        state.editing = n.id; $('#note-input').value = n.text; state.quotes.note = n.quote ? { ...n.quote } : null; renderQuote('note');
+        $('#save-note').textContent = '保存修改'; $('#cancel-edit').hidden = false; $('#note-input').focus();
+      }), button('删除', () => {
+        if (!confirm('删除这条批注？此操作不能撤销。')) return;
+        state.notes = state.notes.filter(v => v.id !== n.id); if (state.editing === n.id) resetNote();
+        const saved = persistNotes(); renderNotes(); toast(saved ? '批注已删除。' : '仅在本页删除，请导出当前记录。');
+      })); item.append(actions); list.append(item);
+    });
+  }
+  $('#cancel-edit').addEventListener('click', () => { if (!dirty() || confirm('放弃未保存的修改？')) resetNote(); });
+  $('#note-form').addEventListener('submit', e => {
+    e.preventDefault(); const text = $('#note-input').value.trim();
+    if (!text || text.length > 2000) { toast('请输入 1–2000 个字符。'); return; }
+    if (!state.editing && state.notes.length >= 200) { toast('每篇最多 200 条批注，请先导出整理。'); return; }
+    const old = state.notes.find(n => n.id === state.editing);
+    const n = { id: old?.id || (globalThis.crypto?.randomUUID?.() || Date.now() + '-' + Math.random().toString(36).slice(2)),
+      text, created: old?.created || new Date().toISOString(), quote: state.quotes.note ? { ...state.quotes.note } : null };
+    state.notes = old ? state.notes.map(v => v.id === n.id ? n : v) : [n, ...state.notes];
+    const saved = persistNotes(); resetNote(); renderNotes(); toast(saved ? '批注已保存在当前浏览器。' : '批注仅暂存本页，请导出后再离开。');
+  });
+  $('#question-form').addEventListener('submit', e => {
+    e.preventDefault(); const input = $('#question-input'), text = input.value.trim();
+    if (!text || text.length > 1000) { toast('请输入 1–1000 个字符。'); return; }
+    if ($('#discussion-list').childElementCount >= 100) { toast('本页最多暂存 100 个问题。'); return; }
+    const item = node('article', 'note-item'); item.append(node('small', '', '我的问题 · 仅本页'));
+    if (state.quotes.question) item.append(node('blockquote', '', state.quotes.question.text));
+    item.append(node('p', '', text), button('删除', () => { item.remove(); $('#questions-empty').hidden = Boolean($('#discussion-list').childElementCount); }));
+    $('#discussion-list').prepend(item); $('#questions-empty').hidden = true; input.value = ''; state.quotes.question = null; renderQuote('question');
+    toast('已暂存到本页，没有发送给服务器或 AI。');
   });
   $('#export-notes').addEventListener('click', () => {
-    if (!notes.length) { notify('还没有可导出的笔记'); return; }
-    const title = $('.reader-title').textContent.trim();
-    const output = [`# ${title} · 阅读笔记`, '', '以下为个人笔记；请自行妥善保存。', '', ...notes.flatMap((note, index) => [`## 笔记 ${index + 1}`, '', note.updatedAt, '', ...(note.quote ? [note.quote.split('\n').map(line => `> ${line}`).join('\n'), ''] : []), note.text, '', `原文章节：${sectionElement(note.section)?.textContent || '正文'}`, '', '---', ''])].join('\n');
-    const url = URL.createObjectURL(new Blob([output], { type: 'text/markdown;charset=utf-8' }));
-    const link = make('a'); link.href = url; link.download = `${title.replace(/[\\/:*?"<>|]/g, '-').slice(0, 90)}-笔记.md`; document.body.append(link); link.click(); link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    notify('已导出 Markdown 笔记');
+    if (!state.notes.length) return;
+    const body = '# ' + title + ' · 阅读批注\n\n' + state.notes.map(n => '## ' + new Date(n.created).toLocaleString('zh-CN') + '\n\n' +
+      (n.quote ? '> ' + n.quote.text.replace(/\n/g, '\n> ') + '\n\n原章节：' + n.quote.section + '\n\n' : '') + n.text).join('\n\n---\n\n') + '\n';
+    const url = URL.createObjectURL(new Blob([body], { type: 'text/markdown;charset=utf-8' }));
+    const a = node('a'); a.href = url; a.download = articleId + '-notes.md'; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
   });
-  addEventListener('beforeunload', event => { if ($('#note-input').value.trim()) { event.preventDefault(); event.returnValue = ''; } });
-  renderNotes();
+  let bookmarked = read(prefix + 'bookmark', false) === true;
+  function renderBookmark() { $('#bookmark').setAttribute('aria-pressed', String(bookmarked)); $('#bookmark span').textContent = bookmarked ? '已收藏' : '收藏'; }
+  $('#bookmark').addEventListener('click', () => {
+    bookmarked = !bookmarked; const saved = write(prefix + 'bookmark', bookmarked); renderBookmark();
+    toast(saved ? bookmarked ? '已收藏到当前浏览器。' : '已取消收藏。' : '存储不可用，收藏状态仅本页有效。');
+  });
+  const catalog = [...new Map($$('[data-catalog-link]').map(a => [a.dataset.id, {
+    id: a.dataset.id, title: a.textContent.trim(), summary: a.dataset.summary || '', topic: a.dataset.topic, href: a.getAttribute('href'),
+  }])).values()];
+  const recentKey = 'zhiye:reader:recent:v1';
+  const storedRecent = read(recentKey, []);
+  const recent = [articleId, ...(Array.isArray(storedRecent) ? storedRecent : []).filter(id => typeof id === 'string' && id !== articleId)].slice(0, 50);
+  write(recentKey, recent);
+  function collection(kind) {
+    const rows = kind === 'bookmarks' ? catalog.filter(c => c.id === articleId ? bookmarked : read(`zhiye:article:v1:${c.id}:bookmark`, false) === true)
+      : recent.map(id => catalog.find(c => c.id === id)).filter(Boolean);
+    const items = rows.map(c => { const a = node('a', 'search-result', c.title); a.href = c.href; return a; });
+    info(kind === 'bookmarks' ? '我的收藏' : '最近阅读', [node('p', 'form-hint', '仅当前浏览器，隐藏已下线或不在本次目录中的文章。'),
+      ...(items.length ? items : [node('p', 'dialog-empty', '暂时没有记录。')])]);
+  }
+  function setTheme(dark, persist = true) {
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light'; $('#theme-toggle').setAttribute('aria-pressed', String(dark));
+    $('#theme-toggle').setAttribute('aria-label', dark ? '切换浅色模式' : '切换深色模式');
+    if (persist && !write('zhiye:reader:theme', dark ? 'dark' : 'light')) toast('主题已切换，但无法保存偏好。');
+  }
+  $('#theme-toggle').addEventListener('click', () => setTheme(document.documentElement.dataset.theme !== 'dark'));
+  const chapterRows = headings.length ? headings.map((heading, i) => {
+    const range = document.createRange(); range.setStartBefore(heading);
+    if (headings[i + 1]) range.setEndBefore(headings[i + 1]); else range.setEnd(content, content.childNodes.length);
+    return { title: heading.textContent, text: range.toString(), id: heading.id };
+  }) : [{ title, text: content.textContent, id: 'article-title' }];
+  function renderSearch() {
+    const q = $('#search-input').value.trim().toLocaleLowerCase(), results = $('#search-results'); results.replaceChildren(); let count = 0;
+    if (state.mode === 'catalog') catalog.filter(c => (c.title + c.summary + c.topic).toLocaleLowerCase().includes(q)).slice(0, 30).forEach(c => {
+      const a = node('a', 'search-result'); a.href = c.href; a.append(node('strong', '', c.title), node('small', '', c.topic)); results.append(a); count++;
+    });
+    if (state.mode === 'article' || q) chapterRows.filter(c => (c.title + c.text).toLocaleLowerCase().includes(q)).slice(0, 30 - count).forEach(c => {
+      const at = Math.max(0, c.text.toLocaleLowerCase().indexOf(q) - 20);
+      const el = button('', () => { $('#search-dialog').close(); goTo(c.id); }, 'search-result');
+      el.append(node('strong', '', c.title), node('small', '', '本篇 · ' + c.text.slice(at, at + 100))); results.append(el); count++;
+    });
+    if (!count) results.append(node('p', 'dialog-empty', '没有找到相关内容，请更换关键词。'));
+  }
+  function openSearch(mode) {
+    state.mode = mode; $('#search-input').value = ''; $('#search-input').placeholder = mode === 'article' ? '搜索本篇正文…' : '搜索已发布文章、专题…';
+    $('#search-info').textContent = mode === 'article' ? '仅搜索本篇正文 · 方向键选择 · Enter 打开 · Esc 关闭' : '搜索已发布文章的标题、摘要、专题，以及本篇正文。';
+    renderSearch(); showDialog($('#search-dialog')); $('#search-input').focus();
+  }
+  $('#search-input').addEventListener('input', renderSearch);
+  $('#search-dialog').addEventListener('keydown', e => {
+    const rows = $$('.search-result', $('#search-results')), at = rows.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown' && rows.length) { e.preventDefault(); rows[(at + 1) % rows.length].focus(); }
+    else if (e.key === 'ArrowUp' && rows.length) { e.preventDefault(); at <= 0 ? $('#search-input').focus() : rows[at - 1].focus(); }
+    else if (e.key === 'Enter' && document.activeElement === $('#search-input') && rows.length) { e.preventDefault(); rows[0].click(); }
+  });
+  async function copyLink() {
+    try { if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable'); await navigator.clipboard.writeText(location.href); toast('文章链接已复制。'); }
+    catch { const input = node('textarea'); input.value = location.href; input.readOnly = true; input.setAttribute('aria-label', '可复制的文章地址'); input.style.width = '100%'; info('复制文章链接', [node('p', 'form-hint', '请选择地址并使用系统复制快捷键。'), input]); input.focus(); input.select(); }
+  }
+  document.addEventListener('click', e => {
+    const el = e.target.closest('button,a'); if (!el || !root.contains(el)) return;
+    if (el.hasAttribute('data-close-dialog')) { const d = el.closest('dialog'); d === $('#drawer') ? closeDrawer() : d.close(); }
+    if (el.dataset.drawer) openDrawer(el.dataset.drawer);
+    if (el.dataset.search) openSearch(el.dataset.search);
+    if (el.dataset.collection) collection(el.dataset.collection);
+    if (el.dataset.selection) useQuote(el.dataset.selection);
+    if (el.dataset.quote) useQuote(el.dataset.quote);
+    if (el.dataset.clearQuote) { state.quotes[el.dataset.clearQuote] = null; renderQuote(el.dataset.clearQuote); }
+    if (el.dataset.sectionId) { e.preventDefault(); goTo(el.dataset.sectionId); }
+    if (el.hasAttribute('data-back-top')) window.scrollTo({ top: 0, behavior: motion() });
+    if (el.hasAttribute('data-copy-link')) { $('.more').open = false; copyLink(); }
+    if (el.hasAttribute('data-print')) { $('.more').open = false; window.print(); }
+    if (el.hasAttribute('data-focus')) {
+      closeDrawer(false); $('.more').open = false; document.body.classList.toggle('focus-mode');
+      document.body.classList.contains('focus-mode') ? $('.exit-focus').focus() : $('#article-title').focus({ preventScroll: true });
+    }
+  });
+  $$('dialog').forEach(d => d.addEventListener('click', e => {
+    if (e.target !== d) return; const r = d.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) d === $('#drawer') ? closeDrawer() : d.close();
+  }));
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openSearch('catalog'); }
+    if (e.key === 'Escape') {
+      $('#selection-tools').hidden = true; $('.more').open = false; const d = $$('dialog[open]').at(-1);
+      if (d) { e.preventDefault(); d === $('#drawer') ? closeDrawer() : d.close(); }
+    }
+  });
+  let ticking = false;
+  function readingPosition() {
+    const links = $$('.toc a'); let active = links[0];
+    for (const link of links) { const h = sectionElement(link.dataset.sectionId); if (h && h.getBoundingClientRect().top <= 150) active = link; }
+    links.forEach(a => { if (a === active) a.setAttribute('aria-current', 'location'); else a.removeAttribute('aria-current'); });
+    const r = content.getBoundingClientRect(), start = r.top + scrollY, end = r.bottom + scrollY - innerHeight;
+    const value = end <= start ? (r.bottom <= innerHeight ? 100 : 0) : Math.round(Math.max(0, Math.min(100, (scrollY - start) / (end - start) * 100)));
+    $('.progress-bar').style.width = value + '%'; $('.progress-track').setAttribute('aria-valuenow', String(value)); ticking = false;
+  }
+  addEventListener('scroll', () => { $('#selection-tools').hidden = true; if (!ticking) { ticking = true; requestAnimationFrame(readingPosition); } }, { passive: true });
+  addEventListener('resize', () => {
+    if (state.moved && (state.moved.element.id === 'library' ? innerWidth > 820 : innerWidth > 1100)) closeDrawer(false);
+    readingPosition();
+  });
+  addEventListener('storage', e => {
+    if (e.key === noteKey || e.key === null) { state.safe = false; warning('其他标签页更改了批注存储。为避免覆盖，请先导出本页记录再刷新。'); }
+  });
+  addEventListener('beforeunload', e => { if (dirty() || $('#question-input').value.trim() || state.quotes.question || state.unsaved) { e.preventDefault(); e.returnValue = ''; } });
+  loadNotes(); renderNotes(); renderBookmark(); setTheme(read('zhiye:reader:theme', 'light') === 'dark', false); readingPosition();
 })();

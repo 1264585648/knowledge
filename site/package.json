@@ -3,31 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": {
-    "node": ">=22.12.0"
-  },
+  "engines": { "node": ">=22.12.0" },
   "scripts": {
     "dev": "astro dev --host 127.0.0.1",
     "build": "node scripts/build.mjs",
     "build:production": "node scripts/build.mjs --production",
     "check": "astro check && tsc -p tsconfig.worker.json",
     "test": "vitest run",
-    "test:core": "node --experimental-strip-types --test tests/core.node.test.ts",
+    "test:core": "node --experimental-strip-types --test tests/core.node.test.ts tests/article-template.node.test.mjs",
     "test:e2e": "playwright test",
+    "new:article": "node --experimental-strip-types scripts/new-article.mjs",
     "preview": "npm run build && wrangler dev --local --ip 127.0.0.1",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "deploy": "node scripts/deploy.mjs"
   },
-  "dependencies": {
-    "astro": "7.3.3",
-    "hono": "^4.12.14"
-  },
+  "dependencies": { "astro": "7.3.3", "hono": "^4.12.14" },
   "devDependencies": {
-    "@astrojs/check": "0.9.10",
-    "@playwright/test": "1.58.2",
-    "@types/node": "^22.0.0",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.0",
-    "wrangler": "^4.0.0"
+    "@astrojs/check": "0.9.10", "@playwright/test": "1.58.2", "@types/node": "^22.0.0",
+    "typescript": "^6.0.3", "vitest": "^4.1.0", "wrangler": "^4.0.0"
   }
 }

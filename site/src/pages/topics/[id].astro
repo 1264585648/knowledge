@@ -2,10 +2,10 @@
 import Base from '../../layouts/Base.astro';
 import ArticleList from '../../components/ArticleList.astro';
 import { topics } from '../../data/topics';
-import { publishedArticles } from '../../data/articles';
+import { publishedArticles, topicArticles } from '../../data/articles';
 export function getStaticPaths() { return topics.map(topic => ({ params: { id: topic.id }, props: { topic } })); }
 const { topic } = Astro.props;
-const articles = (await publishedArticles()).filter(article => article.data.topics.includes(topic.id));
+const articles = topicArticles(await publishedArticles(), topic.id);
 ---
 <Base title={topic.name} description={topic.description}>
   <a class="back-link" href="/topics/">← 全部专题</a>

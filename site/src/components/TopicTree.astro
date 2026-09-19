@@ -1,0 +1,33 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { topics } from '../data/topics';
+import { articleURL, topicArticles } from '../data/article-utils';
+import Icon from './ReaderIcon.astro';
+interface Props { articles: CollectionEntry<'articles'>[]; currentId: string }
+const { articles, currentId } = Astro.props;
+const groups = topics.map(topic => ({ ...topic, entries: topicArticles(articles, topic.id) }));
+---
+<aside class="library" id="library" aria-label="知识库目录">
+  <a class="brand" href="/"><strong>知页</strong><span>记录、整理、分享有价值的知识</span></a>
+  <button class="library-search" type="button" data-search="catalog"><Icon name="search" /><span>搜索文章、专题或内容…</span><kbd>⌘ K</kbd></button>
+  <div class="library-scroll">
+    <nav class="primary-nav" aria-label="主导航">
+      <a href="/"><Icon name="home" />首页</a><a href="/topics/"><Icon name="grid" />全部内容</a>
+      <button type="button" data-collection="bookmarks"><Icon name="star" />我的收藏</button>
+      <button type="button" data-collection="recent"><Icon name="clock" />最近阅读</button>
+    </nav>
+    <p class="library-label">知识库</p>
+    <nav aria-label="专题与文章">
+      {groups.map(topic => <details class="topic" open={topic.entries.length > 0}>
+          <summary><Icon name="folder" /><span>{topic.name}</span><Icon name="chevron" class="caret" /></summary>
+          <div class="topic-links">
+            {topic.entries.map(entry => <a href={articleURL(entry.id)} aria-current={entry.id === currentId ? 'page' : undefined}
+              data-catalog-link data-id={entry.id} data-topic={topic.name} data-summary={entry.data.summary}>{entry.data.title}</a>)}
+            {!topic.entries.length && <p class="topic-empty">暂无已发布文章</p>}
+            <a class="topic-overview" href={`/topics/${topic.id}/`}>查看专题概览 ↗</a>
+          </div>
+        </details>)}
+    </nav>
+    <p class="library-footer">一页知识，一点进步。<br />目录仅展示已发布且到达发布日期的文章。</p>
+  </div>
+</aside>
