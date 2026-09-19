@@ -1,14 +1,23 @@
 ---
 import { render } from 'astro:content';
 import Base from '../../layouts/Base.astro';
+import ArticleReader from '../../components/ArticleReader.astro';
 import { publishedArticles, dateLabel } from '../../data/articles';
-export async function getStaticPaths() { return (await publishedArticles()).map(article => ({ params: { id: article.id }, props: { article } })); }
+import { topics } from '../../data/topics';
+export async function getStaticPaths() {
+  return (await publishedArticles()).map(article => ({ params: { id: article.id }, props: { article } }));
+}
 const { article } = Astro.props;
 const { Content, headings } = await render(article);
+const topic = topics.find(item => item.id === article.data.topics[0]);
+// Editorial estimate: approximately 380 non-whitespace characters per minute.
+const minutes = Math.max(1, Math.ceil((article.body || '').replace(/\s/g, '').length / 380));
 ---
 <Base title={article.data.title} description={article.data.summary}>
-  <a class="back-link" href={`/topics/${article.data.topics[0]}/`}>← 返回专题</a>
-  <div class="reading-layout"><article class="prose"><header><p class="meta"><time datetime={dateLabel(article.data.publishedAt)}>{dateLabel(article.data.publishedAt)}</time>{article.data.sample && ' · 公开示例'}</p><h1>{article.data.title}</h1><p class="lead">{article.data.summary}</p></header><Content /></article>
-    <aside class="toc"><h2>文章目录</h2><nav aria-label="文章目录">{headings.filter(heading => heading.depth === 2).map(heading => <a href={`#${heading.slug}`}>{heading.text}</a>)}</nav></aside>
-  </div>
+  <ArticleReader articleId={article.id} title={article.data.title} summary={article.data.summary}
+    publishedAt={dateLabel(article.data.publishedAt)} topicName={topic?.name || '专题文章'}
+    topicHref={topic ? `/topics/${topic.id}/` : '/topics/'} minutes={minutes}
+    sample={article.data.sample} headings={headings}>
+    <Content />
+  </ArticleReader>
 </Base>

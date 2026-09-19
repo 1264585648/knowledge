@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="大模型已经很聪明，为什么还需要 RAG？从一个熟悉的问题出发，理解它解决什么、怎样工作，以及适合用在哪里。"><meta name="robots" content="noindex"><title>什么是 RAG：让大模型先查资料，再回答 · 知页</title><style>/* Core tokens are identical to UI规范/README.md. */
+:root{--color-page:#fefefd;--color-card:#fff;--color-surface:#f6f5f2;--color-surface-hover:#f0efeb;--color-row-hover:#f8f8f5;--color-heading:#2d2e2a;--color-text:#454640;--color-muted:#6b6d66;--color-nav:#5e6059;--color-border:#e8e9e3;--color-border-strong:#cbcdc3;--color-focus:#737b65;--color-icon:#666960;--color-selection:#e8ebdf;--font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;color-scheme:light}
+*,*::before,*::after{box-sizing:border-box}body{margin:0;background:var(--color-page);color:var(--color-text);font:16px/1.7 var(--font-sans);-webkit-font-smoothing:antialiased}h1,h2,h3,p{margin:0}h1,h2,h3{color:var(--color-heading);font-weight:600}a{color:inherit;text-decoration:none}button{font:inherit;cursor:pointer;color:inherit}button:disabled{cursor:not-allowed;opacity:.65}::selection{background:var(--color-selection)}:focus-visible{outline:2px solid var(--color-focus);outline-offset:4px}.site-header{margin:auto;height:64px;padding:0 24px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--color-border)}.brand{display:flex;gap:10px;align-items:center;font-size:19px;font-weight:600;letter-spacing:.03em}.site-header nav{display:flex;align-items:center;gap:30px;font-size:13px;color:var(--color-nav)}.preview-label{font-size:11px;color:var(--color-muted);padding:2px 8px;border:1px solid var(--color-border);border-radius:4px}.container,.site-footer{margin-inline:auto}.site-footer{width:calc(100% - 80px);display:flex;justify-content:space-between;gap:20px;border-top:1px solid var(--color-border);margin-top:0;padding:24px 0 32px;font-size:12px;color:var(--color-muted)}.skip-link{position:fixed;top:12px;left:16px;transform:translateY(-200%);padding:8px 16px;background:var(--color-heading);color:white;z-index:80}.skip-link:focus{transform:none}@media(max-width:640px){.site-header{padding:0 4px}.site-header nav{gap:18px}.preview-label{display:none}.site-footer{width:calc(100% - 40px);font-size:11px}}
+</style><link rel="stylesheet" href="../site/public/public/article-reader.css"></head>
+<body><a class="skip-link" href="#reader-title">跳到正文</a><header class="site-header"><a class="brand" href="index.html" aria-label="知页首页"><svg width="22" height="24" viewBox="0 0 24 26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 3.5h17v20h-17z" stroke-width="1.9"/><path d="M3.5 4h17v5h-17z" fill="currentColor" stroke="none"/></svg><span>知页</span></a><nav aria-label="主导航"><a href="index.html">文章</a><a href="topics.html">专题</a><span class="preview-label">内容页预览</span></nav></header>
+<main id="main" class="container"><div class="reader-shell" data-reader data-article-id="what-is-rag">
+<nav class="reader-breadcrumb" aria-label="面包屑"><a href="index.html">文章</a><span aria-hidden="true">/</span><a href="topic.html?topic=knowledge-management">知识管理</a><span aria-hidden="true">/</span><span aria-current="page">阅读正文</span></nav>
+<div class="reader-grid"><aside class="reader-outline" aria-label="文章目录"><p class="outline-label">正在阅读</p><a class="outline-topic" href="topic.html?topic=knowledge-management">知识管理 <span aria-hidden="true">↗</span></a><details class="outline-details" open><summary>本文目录 <span aria-hidden="true">⌄</span></summary><nav class="outline-nav" aria-label="本文章节"><a class="" href="#01-为什么需要-rag">01 为什么需要 RAG</a><a class="subheading" href="#通用大模型的三个局限">通用大模型的三个局限</a><a class="subheading" href="#不是让它知道一切而是给它所需的资料">不是让它知道一切，而是给它所需的资料</a><a class="" href="#02-什么是-rag">02 什么是 RAG</a><a class="subheading" href="#一次回答是怎样发生的">一次回答是怎样发生的</a><a class="subheading" href="#rag-与微调不是一回事">RAG 与微调，不是一回事</a><a class="" href="#03-rag-能用在哪里">03 RAG 能用在哪里</a><a class="subheading" href="#企业知识库把散落的制度变成答案">企业知识库：把散落的制度变成答案</a><a class="subheading" href="#产品文档助手让回答跟着版本走">产品文档助手：让回答跟着版本走</a><a class="subheading" href="#个人学习助手和自己的笔记对话">个人学习助手：和自己的笔记对话</a><a class="subheading" href="#使用边界有资料也不一定答对">使用边界：有资料，也不一定答对</a></nav></details><div class="outline-bottom"><p>慢慢读，<br>把知识变成自己的。</p><button type="button" class="text-button" data-back-top>↑ 回到顶部</button></div></aside>
+<article class="reader-article" aria-labelledby="reader-title"><header><div class="article-eyebrow"><span class="small-tag">知识管理</span><span>内容页示例</span></div><h1 class="reader-title" id="reader-title">什么是 RAG：让大模型先查资料，再回答</h1><p class="reader-summary">大模型已经很聪明，为什么还需要 RAG？从一个熟悉的问题出发，理解它解决什么、怎样工作，以及适合用在哪里。</p><div class="article-meta"><span class="author-mark" aria-hidden="true">知</span><span>知页</span><span class="meta-separator" aria-hidden="true">·</span><time datetime="2026-09-19">2026.09.19</time><span class="meta-separator" aria-hidden="true">·</span><span>约 9 分钟</span></div></header>
+<div class="article-actions" aria-label="文章操作"><button type="button" class="text-button" data-focus aria-pressed="false">↔ 专注阅读</button><button type="button" class="text-button" data-copy-link>↗ 复制链接</button><button type="button" class="text-button" data-open-notes>＋ 记笔记</button><span class="reading-tip">选中文字，随手记下想法</span></div><div class="reader-content" id="reader-content"><blockquote>
+<p><strong>读完这篇，你会理解</strong>
+为什么“会回答”不等于“知道答案”；RAG 如何把外部资料带进回答；以及哪些问题值得用它来解决。无需预先了解向量数据库或模型训练。</p>
+</blockquote>
+<h2 id="01-为什么需要-rag">01 为什么需要 RAG</h2>
+<p>想象你刚加入一家公司，向大模型问：“我们公司的差旅报销，需要提前几天申请？”</p>
+<p>它也许能写出一份条理清晰的申请流程。但如果你没有提供公司的制度，它就没有足够依据判断，这份流程是否适用于你。</p>
+<p><strong>问题不在于它不会组织语言，而在于它缺少回答这个问题所需的资料。</strong></p>
+<h3 id="通用大模型的三个局限">通用大模型的三个局限</h3>
+<p>首先，模型参数中的知识不会自动跟随现实更新。其次，企业内部文档、个人笔记等私有资料，通常不在它可访问的范围内。最后，流畅的回答不意味着事实可靠；仅凭模型记忆，也难以追溯每一个结论的来源。<a href="https://arxiv.org/abs/2005.11401">1</a></p>
+<p>这里讨论的是没有获得相关外部资料的模型，而不是说所有带搜索、文件上传或知识库的 AI 产品都无法处理这些问题。</p>
+<blockquote>
+<p><strong>一个更直观的比喻</strong>
+闭卷回答，主要依赖已经记住的内容；开卷回答，可以先翻到相关资料，再根据材料作答。RAG 做的，就是为模型安排一次有针对性的“查资料”。这只是帮助理解的类比，不代表开卷就一定答对。</p>
+</blockquote>
+<h3 id="不是让它知道一切而是给它所需的资料">不是让它知道一切，而是给它所需的资料</h3>
+<p>沿用前面的假设场景：系统先从当前有效的差旅制度里找到“申请时限”这一段，再把它和问题一起交给模型。模型随后围绕这段材料组织回答，并提供出处，供你检查。</p>
+<p>制度更新后，需要维护的是资料与检索索引，而不是为了改一个报销天数就重新训练整个模型。能否及时回答，仍取决于资料是否更新、是否有权限、以及能否检索到正确段落。<a href="https://learn.microsoft.com/en-us/azure/search/retrieval-augmented-generation-overview">2</a></p>
+<h2 id="02-什么是-rag">02 什么是 RAG</h2>
+<p>RAG 是 <strong>Retrieval-Augmented Generation</strong>，中文通常译作<strong>检索增强生成</strong>。它把外部知识的检索与模型的文本生成连接起来：先找相关资料，再让模型结合资料回答。<a href="https://arxiv.org/abs/2005.11401">1</a></p>
+<div aria-label="RAG 的简化流程：检索相关资料，将资料与问题组合，再由大模型生成回答。" class="rag-flow" role="img">
+<div class="flow-step">检索<span>找到相关资料</span></div><span aria-hidden="true" class="flow-arrow">→</span>
+<div class="flow-step">增强<span>资料 + 问题</span></div><span aria-hidden="true" class="flow-arrow">→</span>
+<div class="flow-step">生成<span>基于资料回答</span></div>
+</div>
+<h3 id="一次回答是怎样发生的">一次回答是怎样发生的</h3>
+<p>可以把最简单的一次 RAG 请求拆成三个动作。<strong>检索</strong>：从可访问的知识源中找到相关内容。<strong>增强</strong>：把筛选后的片段作为上下文交给模型。<strong>生成</strong>：模型根据问题和这些片段组织回答。<a href="https://learn.microsoft.com/en-us/azure/search/retrieval-augmented-generation-overview">2</a></p>
+<p>以下是一个人为构造的演示，不是真实公司的制度：</p>
+<blockquote>
+<p><strong>用户的问题</strong>
+出差前，需要提前多久提交申请？</p>
+<p><strong>检索到的资料</strong>
+《差旅管理办法》第 3 条：员工应至少提前 3 个工作日提交出差申请。</p>
+<p><strong>基于资料的回答示例</strong>
+按照这份制度，至少提前 3 个工作日提交。依据：《差旅管理办法》第 3 条。材料没有说明紧急出差的例外流程，不能据此推断。</p>
+</blockquote>
+<p>RAG 不等于某个具体模型，也不等于“必须接入一种向量数据库”。关键词、向量或混合检索都可以作为找资料的手段；这里先理解“检索 + 生成”的关系即可。<a href="https://learn.microsoft.com/en-us/azure/search/retrieval-augmented-generation-overview">2</a></p>
+<h3 id="rag-与微调不是一回事">RAG 与微调，不是一回事</h3>
+<p>可以先用目标来区分：RAG 侧重在回答时提供外部信息；微调通过训练改变模型的参数与行为。两者可以配合，原始 RAG 研究本身就探索了检索与生成模型的联合微调。因此，“RAG 永远不训练模型”并不准确。<a href="https://arxiv.org/abs/2005.11401">1</a></p>
+<h2 id="03-rag-能用在哪里">03 RAG 能用在哪里</h2>
+<p>一个实用的判断问题是：<strong>答案是否依赖某批具体资料，而不是只依赖通用知识？</strong> 下面是围绕这个判断设计的三个应用设想，不是已上线产品的效果承诺。</p>
+<h3 id="企业知识库把散落的制度变成答案">企业知识库：把散落的制度变成答案</h3>
+<p>新同事不用在几十份文档中反复翻找，可以直接问“出差怎么申请”“这个流程由谁审批”。系统需要检索当前有效、且这位同事有权访问的资料。查不到时应明确说明，不要补出一套看似合理的内部规定。</p>
+<h3 id="产品文档助手让回答跟着版本走">产品文档助手：让回答跟着版本走</h3>
+<p>用户问一个接口怎么使用，资料库可以提供相应版本的说明、配置示例和已知限制。例如，回答前先确认问题针对哪个版本，再定位文档；不要把旧版的参数拼到新版的示例里。</p>
+<h3 id="个人学习助手和自己的笔记对话">个人学习助手：和自己的笔记对话</h3>
+<p>当你积累了论文摘录、学习卡片和项目复盘，可以问“我之前在哪篇笔记里讨论过这个概念”。一个有价值的回答，不只是重新解释概念，还能带你回到自己读过的原文。</p>
+<h3 id="使用边界有资料也不一定答对">使用边界：有资料，也不一定答对</h3>
+<p>资料错误、检索遗漏或模型误读，都可能影响结果。真实系统仍需要维护资料、控制访问权限、检查检索质量，并验证结论是否被引用的原文支持。不能把“带引用”直接等同于“正确”。<a href="https://learn.microsoft.com/en-us/azure/search/retrieval-augmented-generation-overview">2</a></p>
+<p>对于纯创意写作、无需外部资料的简单改写，不必为了使用 RAG 而增加检索步骤。若真正需要的是实时库存、执行付款等结构化查询或业务操作，应进一步设计相应的数据查询与工具调用，而不只是把文档片段交给模型。</p>
+<blockquote>
+<p><strong>记住这一句话</strong>
+RAG 不是让模型凭空变得无所不知，而是在回答之前，帮它找到这次回答需要的资料。</p>
+</blockquote>
+<div class="article-sources">
+<p><strong>参考资料</strong></p>
+<p><a href="https://arxiv.org/abs/2005.11401" rel="noopener noreferrer" target="_blank">[1] Lewis 等：Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks</a><br/>RAG 原始研究，首次提交于 2020 年。</p>
+<p><a href="https://learn.microsoft.com/en-us/azure/search/retrieval-augmented-generation-overview" rel="noopener noreferrer" target="_blank">[2] Microsoft Learn：Retrieval-augmented generation in Azure AI Search</a><br/>检索、上下文组织、资料更新与访问控制的工程说明。</p>
+</div></div><footer class="reader-end"><p>读到这里，试着用自己的话整理一下收获。</p><button type="button" class="text-button" data-open-notes>写下我的理解 ↗</button></footer></article>
+<aside class="reader-tools" id="reader-tools" aria-labelledby="tools-title">
+  <div class="tools-heading"><div><span class="tools-mark" aria-hidden="true">✳</span><h2 id="tools-title">边读边想</h2></div><button class="icon-button tools-close" type="button" data-tools-close aria-label="关闭阅读面板">×</button></div>
+  <p class="tools-subtitle">让问题有回应，让灵感有去处。</p>
+  <div class="reader-tabs" role="tablist" aria-label="阅读工具">
+    <button type="button" role="tab" id="tab-ask" aria-controls="panel-ask" aria-selected="true" tabindex="0" data-tab="ask">提问</button>
+    <button type="button" role="tab" id="tab-comments" aria-controls="panel-comments" aria-selected="false" tabindex="-1" data-tab="comments">评论</button>
+    <button type="button" role="tab" id="tab-notes" aria-controls="panel-notes" aria-selected="false" tabindex="-1" data-tab="notes">笔记</button>
+  </div>
+  <section class="tool-panel" id="panel-ask" role="tabpanel" aria-labelledby="tab-ask" tabindex="0">
+    <div class="context-pill"><span aria-hidden="true">↳</span><span>围绕本文提问</span><span class="demo-label">演示</span></div>
+    <div class="ask-intro"><h3>哪里还没想明白？</h3><p>从一个小问题开始，<br />把读到的内容变成自己的理解。</p></div>
+    <div class="suggested-questions" aria-label="示例问题">
+      <button type="button" data-question="这一节的核心观点是什么？"><span>这一节的核心观点是什么？</span><span aria-hidden="true">↗</span></button>
+      <button type="button" data-question="可以结合一个例子解释吗？"><span>可以结合一个例子解释吗？</span><span aria-hidden="true">↗</span></button>
+      <button type="button" data-question="实际应用时，有哪些边界？"><span>实际应用时，有哪些边界？</span><span aria-hidden="true">↗</span></button>
+    </div>
+    <div id="question-log" class="question-log" role="log" aria-label="本页演示对话" aria-live="polite" aria-relevant="additions"></div>
+    <form id="question-form" class="tool-form">
+      <label for="question-input">你的问题</label>
+      <textarea id="question-input" maxlength="1000" rows="3" placeholder="写下问题，或选中正文后提问…" required></textarea>
+      <div class="form-bottom"><span>仅本页 · 不调用 AI</span><button type="submit" class="solid-button">提问 <span aria-hidden="true">↑</span></button></div>
+    </form>
+    <p class="panel-hint">当前展示本地交互与原文摘录，不生成 AI 回答。问题不会发送至服务器。</p>
+  </section>
+  <section class="tool-panel" id="panel-comments" role="tabpanel" aria-labelledby="tab-comments" tabindex="0" hidden>
+    <div class="panel-label"><h3>一起讨论</h3><span class="demo-label">本页演示</span></div>
+    <p class="panel-hint">分享你的理解，也欢迎提出不同看法。</p>
+    <div id="comment-empty" class="tool-empty"><span aria-hidden="true">☰</span><h3>讨论，从你开始</h3><p>还没有评论。留下一个值得继续聊的问题。</p></div>
+    <div id="comment-list" class="entry-list" aria-live="polite"></div>
+    <form id="comment-form" class="tool-form"><label for="comment-input">写评论</label><textarea id="comment-input" rows="4" maxlength="2000" required placeholder="哪一部分对你有启发？"></textarea><div class="form-bottom"><span>刷新后清空</span><button type="submit" class="solid-button">添加评论</button></div></form>
+    <p class="panel-hint">评论仅在本页临时展示，没有公开发布，也没有其他用户数据。</p>
+  </section>
+  <section class="tool-panel" id="panel-notes" role="tabpanel" aria-labelledby="tab-notes" tabindex="0" hidden>
+    <div class="panel-label"><h3>我的阅读笔记</h3><button type="button" class="text-button" id="export-notes">导出 .md ↗</button></div>
+    <p class="panel-hint">只保存在当前浏览器，不上传、不跨设备同步。同一浏览器的其他使用者也可能看到，请勿记录敏感内容。</p>
+    <div class="note-quote" id="note-quote" hidden><div class="panel-label"><span>摘自正文</span><button type="button" class="text-button" id="clear-quote">移除</button></div><blockquote id="note-quote-text"></blockquote></div>
+    <form id="note-form" class="tool-form"><label for="note-input">记下此刻的想法</label><textarea id="note-input" rows="5" maxlength="5000" placeholder="用自己的话，记住一个概念…" required></textarea><div class="form-bottom"><span id="note-state" role="status">手动保存</span><button type="submit" class="solid-button" id="save-note">保存笔记</button></div></form>
+    <p class="storage-warning" id="storage-warning" role="status" hidden></p>
+    <div class="panel-label notes-heading"><h3>已保存</h3><span id="note-count">0 条</span></div><div id="note-list" class="entry-list"></div>
+    <p id="note-empty" class="panel-hint">选中正文可以摘录，也可以直接写下想法。</p>
+  </section>
+  <noscript><p class="panel-hint">阅读和目录不需要 JavaScript；提问、评论与笔记需要启用 JavaScript。</p></noscript>
+</aside>
+</div><button class="tools-launcher" type="button" aria-controls="reader-tools" aria-expanded="false">✳ 提问 / 笔记</button><div class="reader-shade" aria-hidden="true"></div><div class="selection-actions" role="group" aria-label="选中文字操作" hidden><button type="button" data-selection-ask>围绕选文提问</button><button type="button" data-selection-note>摘录到笔记</button></div><div class="reader-notice" id="reader-notice" role="status" aria-live="polite" hidden></div></div></main>
+<footer class="site-footer"><span>知页 · 记录、整理、分享</span><span>认真阅读，自在思考。</span></footer><script src="../site/public/public/article-reader.js" defer></script></body></html>

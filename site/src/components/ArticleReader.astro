@@ -1,0 +1,34 @@
+---
+import ReaderTools from './ReaderTools.astro';
+interface Props {
+  articleId: string; title: string; summary: string; publishedAt: string;
+  topicName: string; topicHref: string; minutes: number; sample?: boolean;
+  headings: { depth: number; slug: string; text: string }[];
+}
+const { articleId, title, summary, publishedAt, topicName, topicHref, minutes, sample = false, headings } = Astro.props;
+const outline = headings.filter(heading => heading.depth === 2 || heading.depth === 3);
+---
+<link rel="stylesheet" href="/public/article-reader.css" />
+<div class="reader-shell" data-reader data-article-id={articleId}>
+  <nav class="reader-breadcrumb" aria-label="面包屑"><a href="/">文章</a><span aria-hidden="true">/</span><a href={topicHref}>{topicName}</a><span aria-hidden="true">/</span><span aria-current="page">阅读正文</span></nav>
+  <div class="reader-grid">
+    <aside class="reader-outline" aria-label="文章目录"><p class="outline-label">正在阅读</p><a class="outline-topic" href={topicHref}>{topicName} <span aria-hidden="true">↗</span></a>
+      <details class="outline-details" open><summary>本文目录 <span aria-hidden="true">⌄</span></summary><nav class="outline-nav" aria-label="本文章节">{outline.map(heading => <a class:list={{subheading: heading.depth === 3}} href={`#${encodeURIComponent(heading.slug)}`}>{heading.text}</a>)}</nav></details>
+      <div class="outline-bottom"><p>慢慢读，<br />把知识变成自己的。</p><button type="button" class="text-button" data-back-top>↑ 回到顶部</button></div>
+    </aside>
+    <article class="reader-article" aria-labelledby="reader-title">
+      <header><div class="article-eyebrow"><span class="small-tag">{topicName}</span><span>{sample ? '内容页示例' : '专题文章'}</span></div><h1 class="reader-title" id="reader-title">{title}</h1><p class="reader-summary">{summary}</p>
+        <div class="article-meta"><span class="author-mark" aria-hidden="true">知</span><span>知页</span><span class="meta-separator" aria-hidden="true">·</span><time datetime={publishedAt}>{publishedAt.replaceAll('-', '.')}</time><span class="meta-separator" aria-hidden="true">·</span><span>约 {minutes} 分钟</span></div>
+      </header>
+      <div class="article-actions" aria-label="文章操作"><button type="button" class="text-button" data-focus aria-pressed="false">↔ 专注阅读</button><button type="button" class="text-button" data-copy-link>↗ 复制链接</button><button type="button" class="text-button" data-open-notes>＋ 记笔记</button><span class="reading-tip">选中文字，随手记下想法</span></div>
+      <div class="reader-content" id="reader-content"><slot /></div>
+      <footer class="reader-end"><p>读到这里，试着用自己的话整理一下收获。</p><button type="button" class="text-button" data-open-notes>写下我的理解 ↗</button></footer>
+    </article>
+    <ReaderTools />
+  </div>
+  <button class="tools-launcher" type="button" aria-controls="reader-tools" aria-expanded="false">✳ 提问 / 笔记</button>
+  <div class="reader-shade" aria-hidden="true"></div>
+  <div class="selection-actions" role="group" aria-label="选中文字操作" hidden><button type="button" data-selection-ask>围绕选文提问</button><button type="button" data-selection-note>摘录到笔记</button></div>
+  <div class="reader-notice" id="reader-notice" role="status" aria-live="polite" hidden></div>
+</div>
+<script is:inline src="/public/article-reader.js" defer></script>

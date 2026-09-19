@@ -1,0 +1,43 @@
+<aside class="reader-tools" id="reader-tools" aria-labelledby="tools-title">
+  <div class="tools-heading"><div><span class="tools-mark" aria-hidden="true">✳</span><h2 id="tools-title">边读边想</h2></div><button class="icon-button tools-close" type="button" data-tools-close aria-label="关闭阅读面板">×</button></div>
+  <p class="tools-subtitle">让问题有回应，让灵感有去处。</p>
+  <div class="reader-tabs" role="tablist" aria-label="阅读工具">
+    <button type="button" role="tab" id="tab-ask" aria-controls="panel-ask" aria-selected="true" tabindex="0" data-tab="ask">提问</button>
+    <button type="button" role="tab" id="tab-comments" aria-controls="panel-comments" aria-selected="false" tabindex="-1" data-tab="comments">评论</button>
+    <button type="button" role="tab" id="tab-notes" aria-controls="panel-notes" aria-selected="false" tabindex="-1" data-tab="notes">笔记</button>
+  </div>
+  <section class="tool-panel" id="panel-ask" role="tabpanel" aria-labelledby="tab-ask" tabindex="0">
+    <div class="context-pill"><span aria-hidden="true">↳</span><span>围绕本文提问</span><span class="demo-label">演示</span></div>
+    <div class="ask-intro"><h3>哪里还没想明白？</h3><p>从一个小问题开始，<br />把读到的内容变成自己的理解。</p></div>
+    <div class="suggested-questions" aria-label="示例问题">
+      <button type="button" data-question="这一节的核心观点是什么？"><span>这一节的核心观点是什么？</span><span aria-hidden="true">↗</span></button>
+      <button type="button" data-question="可以结合一个例子解释吗？"><span>可以结合一个例子解释吗？</span><span aria-hidden="true">↗</span></button>
+      <button type="button" data-question="实际应用时，有哪些边界？"><span>实际应用时，有哪些边界？</span><span aria-hidden="true">↗</span></button>
+    </div>
+    <div id="question-log" class="question-log" role="log" aria-label="本页演示对话" aria-live="polite" aria-relevant="additions"></div>
+    <form id="question-form" class="tool-form">
+      <label for="question-input">你的问题</label>
+      <textarea id="question-input" maxlength="1000" rows="3" placeholder="写下问题，或选中正文后提问…" required></textarea>
+      <div class="form-bottom"><span>仅本页 · 不调用 AI</span><button type="submit" class="solid-button">提问 <span aria-hidden="true">↑</span></button></div>
+    </form>
+    <p class="panel-hint">当前展示本地交互与原文摘录，不生成 AI 回答。问题不会发送至服务器。</p>
+  </section>
+  <section class="tool-panel" id="panel-comments" role="tabpanel" aria-labelledby="tab-comments" tabindex="0" hidden>
+    <div class="panel-label"><h3>一起讨论</h3><span class="demo-label">本页演示</span></div>
+    <p class="panel-hint">分享你的理解，也欢迎提出不同看法。</p>
+    <div id="comment-empty" class="tool-empty"><span aria-hidden="true">☰</span><h3>讨论，从你开始</h3><p>还没有评论。留下一个值得继续聊的问题。</p></div>
+    <div id="comment-list" class="entry-list" aria-live="polite"></div>
+    <form id="comment-form" class="tool-form"><label for="comment-input">写评论</label><textarea id="comment-input" rows="4" maxlength="2000" required placeholder="哪一部分对你有启发？"></textarea><div class="form-bottom"><span>刷新后清空</span><button type="submit" class="solid-button">添加评论</button></div></form>
+    <p class="panel-hint">评论仅在本页临时展示，没有公开发布，也没有其他用户数据。</p>
+  </section>
+  <section class="tool-panel" id="panel-notes" role="tabpanel" aria-labelledby="tab-notes" tabindex="0" hidden>
+    <div class="panel-label"><h3>我的阅读笔记</h3><button type="button" class="text-button" id="export-notes">导出 .md ↗</button></div>
+    <p class="panel-hint">只保存在当前浏览器，不上传、不跨设备同步。同一浏览器的其他使用者也可能看到，请勿记录敏感内容。</p>
+    <div class="note-quote" id="note-quote" hidden><div class="panel-label"><span>摘自正文</span><button type="button" class="text-button" id="clear-quote">移除</button></div><blockquote id="note-quote-text"></blockquote></div>
+    <form id="note-form" class="tool-form"><label for="note-input">记下此刻的想法</label><textarea id="note-input" rows="5" maxlength="5000" placeholder="用自己的话，记住一个概念…" required></textarea><div class="form-bottom"><span id="note-state" role="status">手动保存</span><button type="submit" class="solid-button" id="save-note">保存笔记</button></div></form>
+    <p class="storage-warning" id="storage-warning" role="status" hidden></p>
+    <div class="panel-label notes-heading"><h3>已保存</h3><span id="note-count">0 条</span></div><div id="note-list" class="entry-list"></div>
+    <p id="note-empty" class="panel-hint">选中正文可以摘录，也可以直接写下想法。</p>
+  </section>
+  <noscript><p class="panel-hint">阅读和目录不需要 JavaScript；提问、评论与笔记需要启用 JavaScript。</p></noscript>
+</aside>
