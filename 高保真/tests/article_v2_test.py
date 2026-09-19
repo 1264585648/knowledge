@@ -1,0 +1,181 @@
+"""Offline DOM smoke checks; Storage is explicitly mocked in about:blank.
+Run: python 高保真/tests/article_v2_test.py
+Requires Python Playwright and an installed Chromium (CHROMIUM_PATH overrides path).
+No network or production application is exercised.
+"""
+from pathlib import Path
+import os, base64, json
+from playwright.sync_api import sync_playwright
+
+ROOT = Path(__file__).resolve().parents[1]
+HTML = ROOT.joinpath('article-v2.html').read_text()
+CSS = ROOT.joinpath('assets/article-v2.css').read_text()
+JS = ROOT.joinpath('assets/article-v2.js').read_text()
+HTML = HTML.replace('<link rel="stylesheet" href="assets/article-v2.css">', '<style>'+CSS+'</style>')
+HTML = HTML.replace('<script src="assets/article-v2.js" defer></script>', '')
+HTML = HTML.replace('assets/rag-reading-cover.webp', 'data:image/webp;base64,'+base64.b64encode(ROOT.joinpath('assets/rag-reading-cover.webp').read_bytes()).decode())
+KEY='zhiye:article-v2:what-is-rag:'
+results=[]
+def check(name, value):
+    assert value, name
+    results.append(name)
+
+def load(browser, storage=None, broken=False, width=1586):
+    page=browser.new_page(viewport={'width':width,'height':992},accept_downloads=True)
+    page.set_default_timeout(4000)
+    page.set_content(HTML)
+    page.evaluate('''({seed,broken}) => {
+      window.__store = seed;
+      Object.defineProperty(window, 'localStorage', { configurable:true, value:{
+        getItem(key){ if(broken) throw new Error('blocked'); return Object.hasOwn(window.__store,key)?window.__store[key]:null; },
+        setItem(key,value){ if(broken) throw new Error('blocked'); window.__store[key]=String(value); },
+        removeItem(key){ delete window.__store[key]; }
+      }});
+    }''',{'seed':storage or {},'broken':broken})
+    page.emulate_media(reduced_motion='reduce')
+    page.add_script_tag(content=JS)
+    return page
+
+with sync_playwright() as p:
+    browser=p.chromium.launch(executable_path=os.getenv('CHROMIUM_PATH','/usr/bin/chromium'),headless=True,args=['--no-sandbox'])
+    page=load(browser)
+    errors=[]
+    page.on('pageerror',lambda e:errors.append(str(e)))
+    check('five topic groups',page.locator('.topic').count()==5)
+    check('25 article entries',page.locator('.topic-links button').count()==25)
+    check('five live outline targets',page.evaluate('[...document.querySelectorAll(".toc a")].every(a=>document.querySelector(a.hash))'))
+    check('one current article',page.locator('.topic-links [aria-current="page"]').count()==1)
+    check('no duplicate IDs',page.evaluate('(()=>{const ids=[...document.querySelectorAll("[id]")].map(e=>e.id);return new Set(ids).size===ids.length})()'))
+    check('cover loaded',page.locator('.article-cover img').evaluate('(e)=>e.complete && e.naturalWidth === 768'))
+    page.locator('.topic summary').first.click()
+    check('topic collapses',not page.locator('.topic').first.evaluate('(e)=>e.open'))
+    page.locator('.topic summary').first.click()
+    for width in [320,360,375,390,600,768,820,821,1024,1100,1101,1200,1280,1440,1586,1920]:
+        page.set_viewport_size({'width':width,'height':992})
+        check(f'no horizontal overflow at {width}',page.evaluate('document.documentElement.scrollWidth <= innerWidth'))
+    page.set_viewport_size({'width':1586,'height':992})
+    page.locator('#bookmark').click()
+    check('bookmark pressed',page.locator('#bookmark').get_attribute('aria-pressed')=='true')
+    check('bookmark serialized',page.evaluate(f'JSON.parse(window.__store[{json.dumps(KEY+"bookmark")}])') is True)
+    page.locator('[data-collection="bookmarks"]').click()
+    check('bookmark shown in collection',page.locator('#info-body').inner_text().find('什么是 RAG')>=0)
+    page.locator('#info-dialog [data-close-dialog]').click()
+    page.locator('#theme-toggle').click()
+    check('dark theme',page.locator('html').get_attribute('data-theme')=='dark')
+    page.locator('#theme-toggle').click()
+    check('light theme restored',page.locator('html').get_attribute('data-theme')=='light')
+    page.locator('[data-search="article"]').click()
+    page.locator('#search-input').fill('微调')
+    check('article search matches chapter',page.locator('#search-results .search-result').count()==1)
+    page.keyboard.press('ArrowDown')
+    check('search keyboard focuses result',page.locator('#search-results .search-result').evaluate('(e)=>e===document.activeElement'))
+    page.keyboard.press('Enter')
+    page.wait_for_timeout(80)
+    check('search activates chapter',page.evaluate('location.hash')=='#what-is-rag')
+    check('outline follows scrolling',page.locator('.toc [aria-current="location"]').get_attribute('href')=='#what-is-rag')
+    page.keyboard.press('Control+k')
+    page.locator('#search-input').fill('xyznonexistent987')
+    check('search empty state',page.locator('.dialog-empty').is_visible())
+    page.keyboard.press('Escape')
+    check('escape closes search',not page.locator('#search-dialog').evaluate('(e)=>e.open'))
+    page.locator('.topic-links [data-preview]').first.click()
+    check('unconnected article clearly labeled', '正文尚未接入' in page.locator('#info-body').inner_text())
+    page.keyboard.press('Escape')
+    page.locator('#question-input').fill('<img src=x onerror=alert(1)> 请解释微调')
+    page.locator('#question-form [type=submit]').click()
+    check('question inserted', '请解释微调' in page.locator('#discussion-list .discussion-item').first.inner_text())
+    check('question treated as plain text',page.locator('#discussion-list img').count()==0)
+    check('question marked local','未公开发布' in page.locator('#discussion-list .discussion-item').first.inner_text())
+    page.locator('#discussion-list .discussion-item').first.get_by_role('button',name='删除',exact=True).click()
+    check('local question removed',page.locator('#discussion-list .discussion-item').count()==2)
+    page.locator('[data-reply]').first.click()
+    check('reply context inserted','林间夜色' in page.locator('#question-quote').inner_text())
+    page.locator('[data-clear-quote="question"]').click()
+    page.locator('#question-input').fill('暂存的问题')
+    page.locator('#notes-tab').click()
+    page.locator('#question-tab').click()
+    check('question draft survives tabs',page.locator('#question-input').input_value()=='暂存的问题')
+    page.locator('#question-input').fill('')
+    page.locator('#question-tab').focus()
+    page.keyboard.press('ArrowRight')
+    check('keyboard switches tabs',page.locator('#notes-tab').get_attribute('aria-selected')=='true')
+    page.locator('#note-input').fill('本地批注：RAG 不是微调。')
+    page.locator('#note-form [type=submit]').click()
+    check('note displayed',page.locator('.note-item').count()==1)
+    saved=page.evaluate('window.__store')
+    check('note serialized',json.loads(saved[KEY+'notes'])[0]['text']=='本地批注：RAG 不是微调。')
+    page.locator('.note-actions').get_by_role('button',name='编辑',exact=True).click()
+    page.locator('#note-input').fill('已编辑的批注')
+    page.locator('#save-note').click()
+    check('edit replaces rather than duplicates',page.locator('.note-item').count()==1 and '已编辑' in page.locator('.note-item').inner_text())
+    page.evaluate('''() => {
+      const text=document.querySelector('#what-is-rag p');
+      const range=document.createRange();range.selectNodeContents(text);
+      const sel=getSelection();sel.removeAllRanges();sel.addRange(range);
+      text.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));
+    }''')
+    page.wait_for_timeout(50)
+    check('selection toolbar appears',page.locator('#selection-tools').is_visible())
+    page.locator('[data-selection="note"]').click()
+    check('selection quotation inserted',page.locator('#note-quote').is_visible())
+    page.locator('#note-input').fill('引用原文的批注')
+    page.locator('#save-note').click()
+    check('quoted note has source anchor',page.locator('.note-item').first.locator('a').get_attribute('href')=='#what-is-rag')
+    with page.expect_download() as download:
+        page.locator('#export-notes').click()
+    exported=Path(download.value.path()).read_text()
+    check('Markdown exported', '引用原文的批注' in exported and '# 什么是 RAG' in exported)
+    snapshot=page.evaluate('window.__store')
+    second=load(browser, snapshot)
+    second.locator('#notes-tab').click()
+    check('serialized notes restore in new document',second.locator('.note-item').count()==2)
+    second.on('dialog',lambda dialog:dialog.accept())
+    second.locator('.note-item').first.get_by_role('button',name='删除',exact=True).click()
+    check('confirmed note deletion',second.locator('.note-item').count()==1)
+    second.close()
+    page.locator('.more summary').click()
+    page.locator('.more [data-focus]').click()
+    check('focus mode hides sidebars',not page.locator('#library').is_visible() and not page.locator('#right-rail').is_visible())
+    page.locator('.exit-focus').click()
+    check('focus mode restores sidebars',page.locator('#library').is_visible() and page.locator('#right-rail').is_visible())
+    page.set_viewport_size({'width':390,'height':844})
+    page.locator('.floating-dock [data-drawer="library"]').click()
+    check('mobile library opens modal',page.locator('#drawer').evaluate('(e)=>e.matches(":modal")'))
+    check('library moved into drawer',page.locator('#drawer-body #library').count()==1)
+    page.locator('#library .library-search').click()
+    check('search opens from drawer and restores library',page.locator('#search-dialog').evaluate('(e)=>e.open') and page.locator('.workspace > #library').count()==1)
+    page.keyboard.press('Escape')
+    page.locator('[data-drawer="toc"]').click()
+    check('mobile outline visible',page.locator('#drawer-body .toc').is_visible())
+    page.locator('#drawer-body .toc a').nth(2).click()
+    check('mobile anchor closes drawer',not page.locator('#drawer').evaluate('(e)=>e.open'))
+    check('rail restored to grid',page.locator('.workspace > #right-rail').count()==1)
+    page.locator('[data-drawer="notes"]').click()
+    for _ in range(22):
+        page.keyboard.press('Tab')
+    check('native modal constrains focus',page.evaluate('document.querySelector("#drawer").contains(document.activeElement)'))
+    page.set_viewport_size({'width':1440,'height':992})
+    check('cross-breakpoint modal closes',not page.locator('#drawer').evaluate('(e)=>e.open'))
+    check('cross-breakpoint rail restored',page.locator('.workspace > #right-rail').is_visible())
+    page.emulate_media(media='print')
+    check('print hides chrome and keeps article',not page.locator('#library').is_visible() and page.locator('#article-body').is_visible())
+    page.emulate_media(media='screen')
+    failed=load(browser,broken=True)
+    failed.locator('#notes-tab').click()
+    failed.locator('#note-input').fill('无法持久保存')
+    failed.locator('#save-note').click()
+    check('storage failure disclosed',failed.locator('#storage-warning').is_visible() and '只暂存' in failed.locator('#storage-warning').inner_text())
+    check('failed storage note still exportable',failed.locator('.note-item').count()==1 and failed.locator('#export-notes').is_enabled())
+    failed.close()
+    corrupt=load(browser,{KEY+'notes':'not-valid-json'})
+    corrupt.locator('#notes-tab').click()
+    corrupt.locator('#note-input').fill('不覆盖旧数据')
+    corrupt.locator('#save-note').click()
+    check('corrupt storage preserved',corrupt.evaluate(f'window.__store[{json.dumps(KEY+"notes")}]')=='not-valid-json')
+    corrupt.close()
+    page.evaluate(f'window.dispatchEvent(new StorageEvent("storage",{{key:{json.dumps(KEY+"notes")},newValue:"[]"}}))')
+    page.locator('#notes-tab').click()
+    check('cross-tab conflict disclosed','其他标签页' in page.locator('#storage-warning').inner_text())
+    check('no JavaScript errors',not errors)
+    print(json.dumps({'passed':len(results),'checks':results,'browser':'Chromium','storage':'Explicitly mocked Storage in about:blank; not real-origin persistence'},ensure_ascii=False,indent=2))
+    browser.close()
