@@ -111,6 +111,8 @@ with sync_playwright() as p:
     check(page.locator('.tools-launcher').evaluate('(e)=>e===document.activeElement'), 'focus returns to mobile launcher')
     page.locator('.tools-launcher').click()
     page.set_viewport_size({'width':1440,'height':1000})
+    # matchMedia change events are asynchronous; wait for the observable reset.
+    page.wait_for_function('document.body.style.overflow !== "hidden"', timeout=2000)
     check(page.evaluate('document.body.style.overflow !== "hidden"'), 'resizing drawer restores scroll')
     check(not page.locator('.reader-article').evaluate('(e)=>e.inert'), 'resizing drawer restores background access')
     page.close()
