@@ -15,7 +15,8 @@
     "new:article": "node --experimental-strip-types scripts/new-article.mjs",
     "preview": "npm run build && wrangler dev --local --ip 127.0.0.1",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
-    "deploy": "node scripts/deploy.mjs"
+    "deploy": "node scripts/deploy.mjs",
+    "deploy:foundation": "node scripts/deploy.mjs --foundation"
   },
   "dependencies": { "astro": "7.3.3", "hono": "^4.12.14" },
   "devDependencies": {

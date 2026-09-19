@@ -6,7 +6,7 @@ Astro 生成首页、六个专题的目录/详情、文章页、标题摘要搜�
 
 Worker 默认保护全部内容与静态产物；只放行明确列出的访问说明/隐私说明/UI 文件。D1 查询同时验证会话、用户状态、平台身份、关注目标和授权有效期。数据库异常失败关闭。所有响应保守设置 no-store，禁用共享缓存和条件请求复用。
 
-**登录签发、真实 OAuth/公众号核验、Turnstile、限流、取关事件、私有内容自动拉取及远程部署尚未实现。** `worker/providers/README.md` 定义后续接入边界，不是已可用的适配器。
+**登录签发、真实 OAuth/公众号核验、Turnstile、限流、取关事件及私有内容自动拉取尚未实现。** `worker/providers/README.md` 定义后续接入边界，不是已可用的适配器。默认上锁的基础版本已有独立的 Cloudflare 部署入口，见 [自动部署说明](CLOUDFLARE.md)。
 
 ## 环境与命令
 
@@ -93,13 +93,13 @@ npm run build:production
 
 `issueSession` 只是内部服务端工具，没有公开调用入口。未来只有完成可信平台核验后才可调用。测试数据库只存于测试进程内存，测试没有向实际 D1 插入登录账号。
 
-## 后续 Cloudflare 配置
+## Cloudflare 配置
 
-本轮不创建云资源、不登录你的 Cloudflare、不绑定域名。真实平台确定并通过回归后，才解除 `scripts/deploy.mjs` 的发布阻止。
+基础版本使用 `npm run deploy:foundation` 和 `wrangler.foundation.jsonc`，不绑定 D1，只发布公开示例构建并保留全部访问限制。`npm run deploy` 的正式发布阻止仍保留；真实平台确定并通过回归后，才开放内容。
 
 未来需要：实际 D1 ID、远程迁移、真实身份/关注渠道凭据与回调域名、私有内容构建来源、有效期/撤销策略、必要的限流与 Turnstile 配置。Secrets 用环境注入，不写进 wrangler.jsonc。
 
-Workers Builds 的工程根目录为 `site`。现在只接入只读 GitHub CI，不配置自动生产部署。不要把此工程改用 GitHub Pages 或直接上传 dist 的 Pages 静态部署，否则会绕过 Worker。
+Workers Builds 的工程根目录为 `site`，跟踪 `main` 分支；完整构建和部署参数见 [Cloudflare 自动部署](CLOUDFLARE.md)。GitHub CI 继续独立检查代码。不要把此工程改用 GitHub Pages 或直接上传 dist 的 Pages 静态部署，否则会绕过 Worker。
 
 先保留 `run_worker_first=true`，不配置 SPA fallback，不整体放行 `_astro/*` 或 `*.json`。未来节省公共 UI 请求前先做数据泄漏审计。当前请求及静态文件都会经过 Worker，免费额度与 CPU 必须在实际环境测量。
 
