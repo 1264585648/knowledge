@@ -9,6 +9,9 @@ export interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> };
   DB?: Database;
   AUTH_PROVIDER?: string;
+  AUTH_PROVIDERS?: string;
+  ACCESS_POLICY?: string;
+  SESSION_TTL_SECONDS?: string;
   FOLLOW_TARGET?: string;
 }
 export interface SessionRow {

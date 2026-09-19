@@ -1,0 +1,17 @@
+<div class="access-state auth-panel" data-auth="invite">
+  <h2>邀请码登录</h2>
+  <p id="access-status" role="status" aria-live="polite">正在连接登录服务…</p>
+  <form id="invite-form" aria-describedby="invite-help">
+    <label for="invite-code">邀请码</label>
+    <div class="invite-input-row">
+      <input id="invite-code" name="code" type="password" autocomplete="current-password" required maxlength="128" placeholder="粘贴你的邀请码" aria-describedby="invite-help invite-error" disabled />
+      <button id="invite-reveal" type="button" aria-label="显示邀请码" aria-pressed="false">显示</button>
+    </div>
+    <p id="invite-help" class="auth-help">每码一个账号，可重复登录。请妥善保管，不要公开分享。</p>
+    <p id="invite-error" role="alert" aria-live="assertive"></p>
+    <button id="invite-submit" class="auth-submit" type="submit" disabled>登录并阅读 <span aria-hidden="true">→</span></button>
+    <p class="auth-help">登录状态最长保留 7 天。没有邀请码？请向邀请你的人获取。</p>
+  </form>
+  <button id="auth-retry" type="button" hidden>重新连接</button>
+  <noscript><p>请启用 JavaScript 后使用邀请码登录。</p></noscript>
+</div>

@@ -1,14 +1,10 @@
 # Cloudflare Workers 自动部署
 
-仓库：`1264585648/knowledge`，生产分支：`main`。
+仓库 `1264585648/knowledge`，生产分支 `main`。访问地址：[知页](https://zhiye-knowledge.zx-ai.workers.dev/)。生产 URL 已启用，预览 URL 和非生产分支构建均关闭。
 
-已于 2026-09-19 连接 Cloudflare Workers Builds 并完成首次部署。访问地址：<https://zhiye-knowledge.zx-ai.workers.dev/>。生产 URL 已启用，预览 URL 和非生产分支构建均关闭。
-
-当前只发布默认上锁的基础版本。真实登录和关注验证尚未实现；首页及正文会转到访问说明，受保护 API/静态文件返回 503。不要直接发布 `dist` 到 Pages，否则会绕过 Worker。
+当前使用独立的邀请码登录模块。未登录的页面导航转到 `/access/`，数据请求返回 401；邀请码或账号停用后已有会话不能继续阅读。内容仍为公开示例，私有内容源需另行接入。不能把 `dist` 直接发布到 Pages，否则会绕过 Worker。
 
 ## Workers Builds 设置
-
-在 Cloudflare 的 Workers & Pages 中连接 GitHub 仓库，使用以下设置：
 
 | 设置 | 值 |
 | --- | --- |
@@ -16,31 +12,35 @@
 | 生产分支 | `main` |
 | 工程根目录 | `site` |
 | 构建命令 | `npx --yes npm@11.6.4 install && npm run check && npm run test:core` |
-| 部署命令 | `npm run deploy:foundation` |
+| 部署命令 | `npm run deploy:invite` |
 | 非生产分支自动构建 | 关闭 |
 | 构建环境变量 | `SKIP_DEPENDENCY_INSTALL=1` |
 
-`.node-version` 固定 Node.js 22.23.2。构建命令使用 npm 11.6.4 安装依赖并执行检查，跳过 Cloudflare 默认安装器；部署命令重新构建 Astro 页面，然后用 `wrangler.foundation.jsonc` 发布 Worker 和静态资源。推送到 `main` 会自动触发这条流程，无需把 Cloudflare 凭据写入仓库或 GitHub Actions。
+`.node-version` 固定 Node.js 22.23.2。构建命令安装依赖并运行检查；部署命令重新构建 Astro 示例、应用尚未执行的 D1 迁移，再用 `wrangler.invite.jsonc` 发布 Worker 和静态资源。构建令牌需具有当前账号的 Worker 发布和 D1 迁移权限。失败的迁移会中止发布。
 
-基础配置不绑定 D1，且固定 `AUTH_PROVIDER=disabled`、`run_worker_first=true`。本地开发用的 `wrangler.jsonc` 仍保留 D1 占位符。基础部署拒绝设置 `CONTENT_DIR`，并重建产物，防止误上传旧的私有内容。原 `npm run deploy` 仍阻止正式生产发布。
+D1 数据库为 `zhiye-knowledge-auth`，绑定名 `DB`，数据库 ID 记录在邀请码配置文件中。生产变量为 `AUTH_PROVIDERS=invite`、`ACCESS_POLICY=invite`、`SESSION_TTL_SECONDS=604800`。数据库 ID 不是凭据，邀请码明文和会话值不得入库或进入日志。
 
-## 本地验证
+推送 `main` 自动触发构建；不会重建账号、重置邀请码或导入本地私密文件。首次的两条迁移已通过 D1 控制台执行，并登记在 `d1_migrations`。以后由发布脚本检查和执行增量迁移。
+
+原 `npm run deploy:foundation` 保留为关闭登录的回退方式，配置不绑定 D1，原数据库数据保留。两种方式都固定 `run_worker_first=true`、无 SPA fallback，且拒绝私有 `CONTENT_DIR`，避免误传残留产物。
+
+## 验证
 
 ```bash
 cd site
 npm run check
 npm run test:core
-npm run deploy:foundation -- --dry-run
+npm test
+npm run deploy:invite -- --dry-run
 npm run test:e2e
 ```
 
-端到端测试运行与线上相同的基础配置。部署完成后还应核对线上行为：
+端到端测试分别运行基础配置及独立的本地 D1 邀请码配置。测试种子不会上传生产。线上验收应核对：
 
-- `/healthz` 返回 200，内容为 `{"status":"ok","phase":"foundation"}`。
-- `/access/` 返回访问说明，登录按钮不可用。
-- 浏览器访问 `/` 或文章页跳转到 `/access/`。
-- `/search-index.json`、`/articles/welcome/index.html` 返回 503，且不包含正文。
+- `/healthz` 返回 200，内容为 `{"status":"ok"}`。
+- `/api/auth/providers` 返回邀请码渠道可用。
+- 未登录浏览器访问文章转到 `/access/`；直接数据请求返回 401。
+- 有效码登录后可读文章和搜索，Cookie 为 Secure/HttpOnly，响应禁止缓存。
+- 退出后旧会话无法读取内容，原邀请码仍可再次登录。
 
-正式开放内容前，需另行完成真实身份/关注核验、远程 D1 及迁移、私有内容源和权限回归。
-
-2026-09-19 线上验收：`/healthz` 返回 200；浏览器打开首页进入“关注验证接入中”页面；`/api/auth/status` 明确返回 `loginAvailable=false`；搜索索引和文章 HTML 直链返回 503，响应包含 `Cache-Control: no-store, private`。
+邀请码生成、导入、停用与扩展方式见 [登录模块说明](AUTH.md)。

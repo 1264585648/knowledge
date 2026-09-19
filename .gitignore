@@ -2,6 +2,7 @@ node_modules/
 site/dist/
 site/.astro/
 site/.wrangler/
+site/tests/.wrangler/
 site/test-results/
 site/playwright-report/
 site/.env*
@@ -10,5 +11,6 @@ site/.dev.vars*
 !site/.dev.vars.example
 site/.build-mode
 .private-content/
+.local-secrets/
 *.log
 .DS_Store

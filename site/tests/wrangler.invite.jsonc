@@ -1,0 +1,8 @@
+{
+  "name": "zhiye-invite-test", "main": "../worker/index.ts", "compatibility_date": "2026-09-18",
+  "assets": { "directory": "../dist", "binding": "ASSETS", "run_worker_first": true,
+    "html_handling": "auto-trailing-slash", "not_found_handling": "none" },
+  "vars": { "AUTH_PROVIDERS": "invite", "ACCESS_POLICY": "invite", "SESSION_TTL_SECONDS": "604800" },
+  "d1_databases": [{ "binding": "DB", "database_name": "invite-e2e-only",
+    "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "../migrations" }]
+}

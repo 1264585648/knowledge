@@ -6,7 +6,7 @@ Astro 生成首页、六个专题的目录/详情、文章页、标题摘要搜�
 
 Worker 默认保护全部内容与静态产物；只放行明确列出的访问说明/隐私说明/UI 文件。D1 查询同时验证会话、用户状态、平台身份、关注目标和授权有效期。数据库异常失败关闭。所有响应保守设置 no-store，禁用共享缓存和条件请求复用。
 
-**登录签发、真实 OAuth/公众号核验、Turnstile、限流、取关事件及私有内容自动拉取尚未实现。** `worker/providers/README.md` 定义后续接入边界，不是已可用的适配器。默认上锁的基础版本已有独立的 Cloudflare 部署入口，见 [自动部署说明](CLOUDFLARE.md)。
+**邀请码登录、会话签发、限流、单码停用已实现。** 见 [独立登录模块及邀请码管理](AUTH.md)。真实 OAuth/公众号核验、Turnstile、取关事件及私有内容自动拉取尚未实现。线上使用邀请码配置，本地默认仍为关闭登录的基础配置，见 [自动部署说明](CLOUDFLARE.md)。
 
 ## 环境与命令
 
@@ -85,17 +85,18 @@ npm run build:production
 | 接口 | 当前行为 |
 | --- | --- |
 | GET /healthz | 健康状态；不包含配置或 DB 信息 |
-| GET /api/auth/status | 明确返回 loginAvailable=false |
+| GET /api/auth/status | 返回登录渠道可用状态 |
+| POST /api/auth/invite/login | 校验邀请码并创建独立会话 |
 | POST /api/auth/start | 同源检查后返回 503；不接受自报关注 |
 | POST /api/auth/logout | 同源验证、撤销 D1 会话并清除 Cookie |
-| GET /api/session | 有效授权时返回站内用户 ID，否则拒绝 |
+| GET /api/session | 返回认证状态；阅读授权单独校验 |
 | GET /search-index.json | 与正文执行相同权限检查 |
 
-`issueSession` 只是内部服务端工具，没有公开调用入口。未来只有完成可信平台核验后才可调用。测试数据库只存于测试进程内存，测试没有向实际 D1 插入登录账号。
+`issueSession` 是内部服务端工具，由邀请码服务端适配器验证身份后调用。单元测试使用内存 SQLite，浏览器测试使用独立本地 D1，均不写入线上数据库。
 
 ## Cloudflare 配置
 
-基础版本使用 `npm run deploy:foundation` 和 `wrangler.foundation.jsonc`，不绑定 D1，只发布公开示例构建并保留全部访问限制。`npm run deploy` 的正式发布阻止仍保留；真实平台确定并通过回归后，才开放内容。
+邀请码版本使用 `npm run deploy:invite` 和 `wrangler.invite.jsonc`，绑定独立 D1。基础版本使用 `npm run deploy:foundation`，不绑定 D1 并关闭登录。两种部署均只构建公开示例；私有内容发布需另行配置。
 
 未来需要：实际 D1 ID、远程迁移、真实身份/关注渠道凭据与回调域名、私有内容构建来源、有效期/撤销策略、必要的限流与 Turnstile 配置。Secrets 用环境注入，不写进 wrangler.jsonc。
 

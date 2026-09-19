@@ -1,4 +1,5 @@
-import { checkAccess, clearCookie, revokeSession } from './auth.ts';
+import { checkAccess } from './modules/access/index.ts';
+import { authRoute } from './modules/auth/index.ts';
 import type { Env } from './types.ts';
 
 // Exact allowlist. Never allow all JS, JSON, HTML, _astro, images or attachments.
@@ -15,7 +16,8 @@ function secure(response: Response, head = false): Response {
   headers.set('Cache-Control', 'private, no-store');
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('X-Frame-Options', 'DENY');
-  headers.set('Referrer-Policy', 'no-referrer');
+  // Preserve same-origin form POST Origin for logout; suppress cross-origin referrers.
+  headers.set('Referrer-Policy', 'same-origin');
   headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
   headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
@@ -53,26 +55,16 @@ async function route(request: Request, env: Env): Promise<Response> {
   const path = safePath(url.pathname);
   if (!path) return json({ error: 'invalid_path' }, 400);
   if (path === '/healthz' && ['GET', 'HEAD'].includes(request.method)) {
-    return json({ status: 'ok', phase: 'foundation' });
+    return json({ status: 'ok' });
   }
-  if (path === '/api/auth/status' && ['GET', 'HEAD'].includes(request.method)) {
-    return json({ loginAvailable: false, phase: 'foundation', message: '关注渠道尚未接入，暂不开放访问。' });
-  }
-  if (path === '/api/auth/logout' && request.method === 'POST') {
-    if (request.headers.get('Origin') !== url.origin) return json({ error: 'invalid_origin' }, 403);
-    await revokeSession(request, env.DB);
-    return new Response(null, { status: 303, headers: { Location: '/access/', 'Set-Cookie': clearCookie() } });
-  }
-  if (path === '/api/auth/start' && request.method === 'POST') {
-    if (request.headers.get('Origin') !== url.origin) return json({ error: 'invalid_origin' }, 403);
-    // Placeholder by design. Never trust client-submitted followed=true or usernames.
-    return json({ error: 'provider_not_implemented' }, 503);
-  }
+  const authResponse = await authRoute(request, env, path, safeNext);
+  if (authResponse) return authResponse;
   if (!['GET', 'HEAD'].includes(request.method)) {
     return new Response(null, { status: 405, headers: { Allow: 'GET, HEAD' } });
   }
   if (PUBLIC_ASSETS.has(path)) return assets(request, env);
   const access = await checkAccess(request, env, Math.floor(Date.now() / 1000));
+  if (path === '/api/access/status') return json(access);
   if (!access.ok) {
     const status = access.reason === 'not_configured' ? 503 : access.reason === 'unauthenticated' ? 401 : 403;
     if (path.startsWith('/api/') || !request.headers.get('Accept')?.includes('text/html')) {
@@ -81,7 +73,6 @@ async function route(request: Request, env: Env): Promise<Response> {
     const next = safeNext(url.pathname + url.search);
     return new Response(null, { status: 303, headers: { Location: `/access/?next=${encodeURIComponent(next)}` } });
   }
-  if (path === '/api/session') return json({ authenticated: true, userId: access.userId });
   if (path.startsWith('/api/')) return json({ error: 'not_found' }, 404);
   return assets(request, env);
 }

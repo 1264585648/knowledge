@@ -1,14 +1,15 @@
 # 知页 · knowledge
 
-极简、偏 Notion 气质的知识分享网站。正式内容须通过关注验证后访问，Cloudflare 免费方案优先。
+极简、偏 Notion 气质的知识分享网站。当前使用邀请码登录，后续可扩展其他身份与阅读授权渠道。
 
 ## 当前状态
 
 已开始 P0 工程基础：Astro 静态页面、Hono Worker 入口、D1 迁移、会话/关注授权读取、公开访问说明、受保护搜索与权限测试。
 
-**尚未接入真实关注平台，不支持公开登录。** 默认 `AUTH_PROVIDER=disabled`，没有万能口令或开发解锁接口。`npm run deploy` 仍阻止正式生产发布；`npm run deploy:foundation` 可托管默认上锁的基础版本，配置见 [Cloudflare 自动部署](site/CLOUDFLARE.md)。
+**首个独立登录模块已实现：邀请码登录。** 每码对应一个独立账号，可重复登录，支持会话、限流和单独停用。线上使用 `npm run deploy:invite`，原 `deploy:foundation` 保留为关闭登录的回退模式。配置见 [Cloudflare 自动部署](site/CLOUDFLARE.md) 和 [邀请码管理](site/AUTH.md)。真实关注平台尚未接入。
 
 - [实施方案](技术方案/实施方案.md)
+- [登录模块化与扩展方案](技术方案/登录模块化方案.md)
 - [本地运行与工程说明](site/README.md)
 - [首轮验证记录](技术方案/首轮验证记录.md)
 - [UI 规范](UI规范/README.md)
@@ -44,4 +45,4 @@ npm test               # Vitest 运行同一组核心测试
 npm run preview        # 构建后通过本地 Wrangler 验证默认上锁状态
 ```
 
-正式内容不得提交到本公开仓库，也不得放进原高保真、公开构建日志或公开 CI 附件。基础版本可跟踪 `main` 自动部署；正式开放内容前，先确定关注平台并完成真实核验闭环。
+正式私有内容不得提交到本公开仓库，也不得放进原高保真、公开构建日志或公开 CI 附件。Worker 跟踪 `main` 自动部署；当前内容仍为公开示例，私有内容源需另行接入。

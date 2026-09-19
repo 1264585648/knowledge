@@ -10,13 +10,15 @@
     "build:production": "node scripts/build.mjs --production",
     "check": "astro check && tsc -p tsconfig.worker.json",
     "test": "vitest run",
-    "test:core": "node --experimental-strip-types --test tests/core.node.test.ts tests/article-template.node.test.mjs",
-    "test:e2e": "playwright test",
+    "test:core": "node --experimental-strip-types --test tests/core.node.test.ts tests/article-template.node.test.mjs tests/invite.node.test.mjs",
+    "invites:generate": "node --experimental-strip-types scripts/generate-invites.mjs",
+    "test:e2e": "playwright test && playwright test --config playwright.invite.config.ts",
     "new:article": "node --experimental-strip-types scripts/new-article.mjs",
     "preview": "npm run build && wrangler dev --local --ip 127.0.0.1",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "deploy": "node scripts/deploy.mjs",
-    "deploy:foundation": "node scripts/deploy.mjs --foundation"
+    "deploy:foundation": "node scripts/deploy.mjs --foundation",
+    "deploy:invite": "node scripts/deploy.mjs --invite"
   },
   "dependencies": { "astro": "7.3.3", "hono": "^4.12.14" },
   "devDependencies": {

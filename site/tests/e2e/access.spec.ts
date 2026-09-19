@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test';
 test('real Worker redirects protected navigation without revealing article text', async ({ page }) => {
   await page.goto('/articles/welcome/');
   await expect(page).toHaveURL(/\/access\//);
-  await expect(page.getByRole('heading', { name: '关注验证接入中' })).toBeVisible();
-  await expect(page.getByRole('button', { name: '暂未开放访问' })).toBeDisabled();
+  await expect(page.getByRole('heading', { name: '邀请码登录' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '登录并阅读' })).toBeDisabled();
   await expect(page.locator('body')).not.toContainText('先写清楚一个问题');
 });
 for (const path of ['/index.html', '/topics/index.html', '/articles/welcome/index.html', '/search-index.json', '/public/reader.js']) {
