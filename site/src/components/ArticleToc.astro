@@ -1,7 +1,8 @@
 ---
 interface Props { headings: { depth: number; slug: string; text: string }[]; depth?: 2 | 3 }
 const { headings, depth = 2 } = Astro.props;
-const outline = headings.filter(h => h.depth >= 2 && h.depth <= depth);
+// remark-generated accessibility heading is not an author-written chapter.
+const outline = headings.filter(h => h.depth >= 2 && h.depth <= depth && h.slug !== 'footnote-label');
 ---
 <section class="rail-card" id="toc-card">
   <h2 class="rail-heading">本篇目录</h2>
