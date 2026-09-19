@@ -2,6 +2,8 @@
 
 仓库：`1264585648/knowledge`，生产分支：`main`。
 
+已于 2026-09-19 连接 Cloudflare Workers Builds 并完成首次部署。访问地址：<https://zhiye-knowledge.zx-ai.workers.dev/>。生产 URL 已启用，预览 URL 和非生产分支构建均关闭。
+
 当前只发布默认上锁的基础版本。真实登录和关注验证尚未实现；首页及正文会转到访问说明，受保护 API/静态文件返回 503。不要直接发布 `dist` 到 Pages，否则会绕过 Worker。
 
 ## Workers Builds 设置
@@ -40,3 +42,5 @@ npm run test:e2e
 - `/search-index.json`、`/articles/welcome/index.html` 返回 503，且不包含正文。
 
 正式开放内容前，需另行完成真实身份/关注核验、远程 D1 及迁移、私有内容源和权限回归。
+
+2026-09-19 线上验收：`/healthz` 返回 200；浏览器打开首页进入“关注验证接入中”页面；`/api/auth/status` 明确返回 `loginAvailable=false`；搜索索引和文章 HTML 直链返回 503，响应包含 `Cache-Control: no-store, private`。
